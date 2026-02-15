@@ -1,0 +1,627 @@
+<!DOCTYPE html>
+<html lang="sk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SurveyKit | Modular + Raster</title>
+    
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.10.0/proj4.js"></script>
+
+    <style>
+        :root {
+            --primary: #F99202;
+            --primary-hover: #e08402;
+            --sidebar-bg: #F99202;
+            --text-on-primary: #ffffff;
+            
+            --bg:       #f0f2f5;
+            --text:     #333;
+            --card-bg:  #ffffff;
+            --border:   #e1e4e8;
+            
+            --success: #28a745;
+            --danger:  #dc3545;
+            --blue:    #0C4DA2;
+        }
+
+        * { box-sizing: border-box; }
+
+        body { 
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; 
+            margin: 0; padding: 0; 
+            background-color: var(--bg); color: var(--text); 
+            height: 100vh; display: flex; overflow: hidden; 
+        }
+
+        /* --- SIDEBAR --- */
+        .sidebar {
+            width: 250px; background-color: var(--sidebar-bg); color: var(--text-on-primary);
+            display: flex; flex-direction: column; 
+            flex-shrink: 0; box-shadow: 4px 0 10px rgba(0,0,0,0.1); z-index: 2000;
+        }
+
+        .brand-area {
+            padding: 30px 25px;
+            background: linear-gradient(to bottom, rgba(255,255,255,0.1), transparent);
+            margin-bottom: 10px;
+        }
+
+        .logo { font-size: 1.6em; font-weight: 800; display: flex; align-items: center; gap: 10px; letter-spacing: -0.5px; }
+        .logo-icon { background: white; color: var(--primary); width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; border-radius: 6px; font-size: 0.8em; }
+        .logo-sub { font-size: 0.4em; letter-spacing: 2px; opacity: 0.8; margin-top: 5px; display: block; font-weight: 600; }
+
+        /* MENU */
+        .nav-label {
+            padding: 0 25px; font-size: 0.7em; text-transform: uppercase; 
+            color: rgba(255,255,255,0.6); font-weight: bold; margin-bottom: 8px; margin-top: 15px;
+        }
+
+        .nav-menu { list-style: none; padding: 0; margin: 0; flex-grow: 1; }
+        .nav-item {
+            padding: 12px 25px; cursor: pointer; display: flex; align-items: center; gap: 12px;
+            transition: all 0.2s; border-left: 5px solid transparent; color: rgba(255,255,255,0.9);
+            font-size: 0.95em; font-weight: 500;
+        }
+        .nav-item:hover { background: rgba(255,255,255,0.1); color: white; }
+        .nav-item.active { background: rgba(255,255,255,0.2); border-left-color: white; color: white; font-weight: 700; }
+        
+        .footer-info {
+            padding: 25px; font-size: 0.75em; color: rgba(255,255,255,0.8); 
+            border-top: 1px solid rgba(255,255,255,0.2); background: rgba(0,0,0,0.05);
+            line-height: 1.6;
+        }
+        .open-map-mobile {
+            display: none; width: 90%; margin: 15px auto; padding: 12px;
+            background: white; border: none; color: var(--primary); border-radius: 6px; 
+            font-weight: bold; box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        /* --- HLAVNÝ OBSAH --- */
+        .main-content { 
+            flex-grow: 1; padding: 30px; height: 100vh; overflow: hidden; 
+            display: flex; flex-direction: column; 
+        }
+
+        .dashboard-grid {
+            display: grid; grid-template-columns: 450px 1fr; grid-template-rows: 100%; gap: 25px;
+            flex-grow: 1; min-height: 0;
+        }
+
+        .col-tools { display: flex; flex-direction: column; height: 100%; overflow-y: auto; padding-right: 5px; }
+        .col-map { height: 100%; display: flex; flex-direction: column; }
+
+        .module-container { display: none; flex-direction: column; gap: 20px; }
+        .module-container.active { display: flex; }
+
+        .top-bar { margin-bottom: 5px; }
+        .module-title { font-size: 1.8em; color: var(--blue); font-weight: 700; margin: 0; letter-spacing: -0.5px; }
+        .module-desc { color: #666; font-size: 0.9em; margin-top: 5px; }
+
+        /* KARTY */
+        .card {
+            background: var(--card-bg); border-radius: 12px; padding: 0;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05); 
+            border: 1px solid var(--border);
+            display: flex; flex-direction: column; flex-shrink: 0; overflow: hidden;
+        }
+        .card.full { flex-grow: 1; height: 100%; }
+        .card-header { padding: 15px 20px; background: #fff; border-bottom: 1px solid #eee; font-weight: 700; color: #837052; display: flex; justify-content: space-between; align-items: center; font-size: 1em; }
+        .card-body { padding: 20px; flex-grow: 1; overflow-y: auto; }
+
+        .drop-zone { border: 2px dashed #ccc; padding: 40px 20px; text-align: center; border-radius: 8px; cursor: pointer; background: #fafafa; transition: all 0.2s; color: #666; }
+        .drop-zone:hover { border-color: var(--primary); background: #fffdf5; color: var(--primary); transform: scale(1.01); }
+        .drop-icon { font-size: 32px; margin-bottom: 10px; display: block; color: var(--primary); }
+
+        .res-list { list-style: none; padding: 0; margin: 0; }
+        .res-item { display: flex; justify-content: space-between; align-items: center; padding: 12px 20px; border-bottom: 1px solid #eee; animation: fadeIn 0.3s; background: white; }
+        .res-item:hover { background: #f8f9fa; }
+        .res-info { display: flex; align-items: center; gap: 12px; }
+        .res-name { font-weight: 700; color: var(--blue); font-size: 0.95em; font-family: 'Consolas', monospace; }
+        .res-meta { font-size: 0.8em; color: #888; margin-top: 2px; }
+        .tag-color { display: inline-block; width: 10px; height: 10px; border-radius: 50%; box-shadow: 0 0 0 2px rgba(0,0,0,0.1); }
+
+        .btn { border: none; padding: 6px 12px; border-radius: 6px; font-weight: 600; font-size: 0.85em; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; gap: 6px; transition: all 0.2s; }
+        .btn-green { background: var(--success); color: white; }
+        .btn-green:hover { background: #218838; transform: translateY(-1px); }
+        .btn-text { background: none; color: var(--danger); padding: 5px 10px; }
+        .btn-text:hover { background: #fff5f5; text-decoration: underline; }
+
+        /* MAPA & RASTER Button */
+        #map { width: 100%; height: 100%; }
+        .close-map-mob { display: none; position: absolute; top: 15px; left: 15px; z-index: 9999; background: white; border: none; width: 44px; height: 44px; border-radius: 50%; font-size: 24px; box-shadow: 0 4px 10px rgba(0,0,0,0.2); color: var(--danger); }
+        
+        .raster-control {
+            position: absolute; top: 10px; right: 10px; z-index: 1000;
+            background: white; padding: 6px 12px; border-radius: 4px;
+            box-shadow: 0 0 0 2px rgba(0,0,0,0.1); cursor: pointer;
+            font-weight: bold; color: #333; border: 1px solid #ccc;
+            display: flex; align-items: center; gap: 6px; font-size: 0.9em;
+        }
+        .raster-control:hover { background: #f8f8f8; }
+
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* MOBILE */
+        @media (max-width: 900px) {
+            body { flex-direction: column; height: auto; min-height: 100vh; overflow-y: auto; }
+            .sidebar { width: 100%; height: auto; }
+            .nav-menu, .nav-label, .footer-info { display: none; } 
+            .brand-area { margin-bottom: 0; display: flex; justify-content: space-between; align-items: center; padding: 15px 20px; }
+            .open-map-mobile { display: block; margin: 0; width: auto; padding: 8px 16px; }
+            .main-content { padding: 15px; height: auto; overflow: visible; }
+            .dashboard-grid { display: block; }
+            .col-tools { height: auto; margin-bottom: 25px; overflow: visible; padding-right: 0; }
+            .col-map { display: none; }
+            .col-map.active { display: block; position: fixed; inset: 0; z-index: 5000; background: white; }
+            .close-map-mob { display: block; }
+            .module-title { font-size: 1.5em; }
+        }
+    </style>
+</head>
+<body>
+
+    <aside class="sidebar">
+        <div class="brand-area">
+            <div class="logo">
+                <div class="logo-icon">SK</div>
+                <div>SurveyKit <span class="logo-sub">by LuSt</span></div>
+            </div>
+            <button class="open-map-mobile" onclick="toggleMap(true)">Mapa</button>
+        </div>
+
+        <div class="nav-label">Nástroje</div>
+        <ul class="nav-menu">
+            <li class="nav-item active" onclick="switchView('mgeo', this)">
+                <span>⚡</span> Trimble to MGEO
+            </li>
+            <li class="nav-item" onclick="switchView('import', this)">
+                <span>📥</span> Import for Trimble
+            </li>
+        </ul>
+        
+        <div class="footer-info">
+            <strong>Info:</strong><br>
+            Moduly sú oddelené.<br>
+            Import: -Y, -X (3 des. miesta)
+        </div>
+    </aside>
+
+    <main class="main-content">
+        <div class="dashboard-grid">
+            
+            <div class="col-tools">
+                
+                <div id="view-mgeo" class="module-container active">
+                    <div class="top-bar">
+                        <div>
+                            <h1 class="module-title">Trimble to MGEO</h1>
+                            <div class="module-desc">Konverzia protokolov merania a vizuálna kontrola</div>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-header">
+                            <span>1. Vstup dát (Protokol merania)</span>
+                        </div>
+                        <div class="card-body">
+                            <div class="drop-zone" id="dropZoneMgeo">
+                                <input type="file" id="fileInputMgeo" multiple accept=".txt,.csv,.log" style="display:none">
+                                <div class="drop-icon">📂</div>
+                                <div>Pretiahni súbory sem</div>
+                                <strong>alebo klikni</strong>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card full" id="resultsCardMgeo" style="display:none;">
+                        <div class="card-header">
+                            <span>2. Výstup (UPR)</span>
+                            <button class="btn btn-text" onclick="clearMgeo()">Zmazať všetko</button>
+                        </div>
+                        <div class="card-body" style="padding:0;">
+                            <ul class="res-list" id="resultListMgeo"></ul>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="view-import" class="module-container">
+                    <div class="top-bar">
+                        <div>
+                            <h1 class="module-title">Import for Trimble</h1>
+                            <div class="module-desc">Príprava súradníc pre prístroj (-Y, -X)</div>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-header">
+                            <span>1. Vstup dát (Rôzne formáty)</span>
+                        </div>
+                        <div class="card-body">
+                            <div class="drop-zone" id="dropZoneImport">
+                                <input type="file" id="fileInputImport" multiple accept=".txt,.csv,.xyz" style="display:none">
+                                <div class="drop-icon">📥</div>
+                                <div>Pretiahni súbory sem</div>
+                                <strong>alebo klikni</strong>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card full" id="resultsCardImport" style="display:none;">
+                        <div class="card-header">
+                            <span>2. Výstup (_TR.txt)</span>
+                            <button class="btn btn-text" onclick="clearImport()">Zmazať všetko</button>
+                        </div>
+                        <div class="card-body" style="padding:0;">
+                            <ul class="res-list" id="resultListImport"></ul>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
+            <div class="col-map" id="mapColumn">
+                <div class="card full" style="position:relative;">
+                    
+                    <button class="raster-control" onclick="document.getElementById('rasterInput').click()" title="Vyberte naraz JPG aj JGW súbor!">
+                        🗺️ Pridať Raster (JPG+JGW)
+                    </button>
+                    <input type="file" id="rasterInput" multiple accept=".jpg,.jpeg,.jgw,.prj" style="display:none">
+
+                    <button class="close-map-mob" onclick="toggleMap(false)">✕</button>
+                    <div id="map"></div>
+                </div>
+            </div>
+
+        </div>
+    </main>
+
+<script>
+    // --- 1. GLOBÁLNA KONFIGURÁCIA ---
+    proj4.defs("EPSG:5514","+proj=krovak +lat_0=49.5 +lon_0=24.83333333333333 +alpha=30.28813972222222 +k=0.9999 +x_0=0 +y_0=0 +ellps=bessel +towgs84=570.8,85.7,462.8,4.998,1.587,5.261,3.56 +units=m +no_defs");
+
+    const map = L.map('map', { center: [48.716, 19.7], zoom: 8, maxZoom: 25 });
+    
+    const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxNativeZoom: 19, maxZoom: 25, attribution: '© OSM' }).addTo(map);
+    const sat = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { maxNativeZoom: 19, maxZoom: 25, attribution: 'Tiles © Esri' });
+    
+    L.control.layers({ "Mapa": osm, "Satelit": sat }).addTo(map);
+
+    const layerGroup = L.featureGroup().addTo(map);
+    const colors = ['#F99202', '#0C4DA2', '#28a745', '#9b59b6', '#e74c3c', '#34495e'];
+
+    // --- 2. LOGIKA PRE RASTER (JPG + JGW) ---
+    const rasterInput = document.getElementById('rasterInput');
+    rasterInput.addEventListener('change', function(e) {
+        handleRasterFiles(e.target.files);
+        this.value = ''; // Reset pre ďalšie vloženie
+    });
+
+    function handleRasterFiles(files) {
+        let jpgFile = null;
+        let jgwFile = null;
+
+        Array.from(files).forEach(f => {
+            if(f.name.toLowerCase().endsWith('.jpg') || f.name.toLowerCase().endsWith('.jpeg')) jpgFile = f;
+            if(f.name.toLowerCase().endsWith('.jgw')) jgwFile = f;
+        });
+
+        if(!jpgFile || !jgwFile) {
+            alert("Musíte vybrať naraz obrázok (.jpg) aj world file (.jgw)!");
+            return;
+        }
+
+        // 1. Načítať JGW
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            const content = e.target.result;
+            const lines = content.trim().split(/\s+/).map(Number);
+            
+            if(lines.length < 6) { alert("Chybný formát JGW súboru."); return; }
+
+            // JGW parametre: 0:ScaleX, 1:RotY, 2:RotX, 3:ScaleY, 4:OriginX, 5:OriginY
+            const scaleX = lines[0];
+            const scaleY = lines[3];
+            const originX = lines[4];
+            const originY = lines[5];
+
+            // 2. Načítať JPG pre rozmery
+            const imgReader = new FileReader();
+            imgReader.onload = function(evt) {
+                const img = new Image();
+                img.onload = function() {
+                    const width = img.width;
+                    const height = img.height;
+
+                    // 3. Výpočet rohov v JTSK
+                    // V JGW sú X=Easting, Y=Northing. 
+                    const x1 = originX;
+                    const y1 = originY;
+                    const x2 = originX + (width * scaleX);
+                    const y2 = originY + (height * scaleY);
+
+                    // 4. Transformácia do WGS84
+                    // Proj4 "EPSG:5514" očakáva [x, y] v metroch.
+                    const tl = proj4('EPSG:5514', 'EPSG:4326', [x1, y1]); // Top Left
+                    const br = proj4('EPSG:5514', 'EPSG:4326', [x2, y2]); // Bottom Right
+
+                    // V Leaflet je ImageOverlay definovaný [Lat, Lon] (Y, X)
+                    // Pozor: Leaflet potrebuje bounds ako [[Lat1, Lon1], [Lat2, Lon2]]
+                    // Lat = wgs[1], Lon = wgs[0]
+                    const bounds = [[tl[1], tl[0]], [br[1], br[0]]];
+
+                    L.imageOverlay(img.src, bounds, { opacity: 0.8 }).addTo(map);
+                    map.fitBounds(bounds);
+                };
+                img.src = evt.target.result;
+            };
+            imgReader.readAsDataURL(jpgFile);
+        };
+        reader.readAsText(jgwFile);
+    }
+
+    // --- 3. NAVIGÁCIA (PREPÍNANIE MODULOV) ---
+    function switchView(viewName, navEl) {
+        document.querySelectorAll('.module-container').forEach(el => el.classList.remove('active'));
+        document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+        
+        document.getElementById('view-' + viewName).classList.add('active');
+        navEl.classList.add('active');
+
+        setTimeout(() => map.invalidateSize(), 100);
+    }
+
+    function toggleMap(show) {
+        const col = document.getElementById('mapColumn');
+        if(show) col.classList.add('active'); else col.classList.remove('active');
+        setTimeout(() => map.invalidateSize(), 300);
+    }
+
+    /* ========================================================
+       MODUL A: TRIMBLE TO MGEO
+       ======================================================== */
+    const dropZoneMgeo = document.getElementById('dropZoneMgeo');
+    const fileInputMgeo = document.getElementById('fileInputMgeo');
+    const resultListMgeo = document.getElementById('resultListMgeo');
+    const resultsCardMgeo = document.getElementById('resultsCardMgeo');
+
+    dropZoneMgeo.onclick = () => fileInputMgeo.click();
+    fileInputMgeo.onchange = (e) => handleMgeoFiles(e.target.files);
+    
+    dropZoneMgeo.ondragover = (e) => { e.preventDefault(); dropZoneMgeo.classList.add('dragover'); };
+    dropZoneMgeo.ondragleave = (e) => { e.preventDefault(); dropZoneMgeo.classList.remove('dragover'); };
+    dropZoneMgeo.ondrop = (e) => { e.preventDefault(); dropZoneMgeo.classList.remove('dragover'); handleMgeoFiles(e.dataTransfer.files); };
+
+    function handleMgeoFiles(files) {
+        if(!files.length) return;
+        resultsCardMgeo.style.display = 'flex';
+        
+        Array.from(files).forEach((file, i) => {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const color = colors[(resultListMgeo.children.length + i) % colors.length];
+                processMgeoContent(e.target.result, file.name, color);
+            };
+            reader.readAsText(file);
+        });
+        fileInputMgeo.value = '';
+    }
+
+    function clearMgeo() {
+        resultListMgeo.innerHTML = '';
+        resultsCardMgeo.style.display = 'none';
+        layerGroup.clearLayers();
+    }
+
+    function processMgeoContent(text, filename, color) {
+        const lines = text.split(/\r?\n/);
+        let uprOutput = [], points = [], activeLines = {}, shapesToDraw = [];
+        
+        lines.forEach(line => {
+            const trim = line.trim();
+            if(!trim) return;
+            const cols = trim.split(/\s+/);
+            
+            if(cols.length >= 5 && /^\d+$/.test(cols[0])) {
+                try {
+                    const id = cols[0]; if(id.length > 11) return; 
+                    const rawY = parseFloat(cols[1]), rawX = parseFloat(cols[2]), rawZ = parseFloat(cols[3]);
+                    if(isNaN(rawY) || isNaN(rawX)) return;
+
+                    const absY = Math.abs(rawY).toFixed(3), absX = Math.abs(rawX).toFixed(3), z = rawZ.toFixed(3);
+                    const rawCode = cols[cols.length - 1];
+
+                    const wgs = proj4('EPSG:5514', 'EPSG:4326', [-Math.abs(rawY), -Math.abs(rawX)]);
+                    const pt = { id, y: absY, x: absX, z: z, lat: wgs[1], lon: wgs[0], jtskX: -Math.abs(rawX), jtskY: -Math.abs(rawY), code: rawCode };
+                    
+                    points.push(pt);
+                    uprOutput.push(`${id} ${absY} ${absX} ${z} ${rawCode}`);
+
+                    let isStart = rawCode.startsWith('#'), cleanCode = isStart ? rawCode.substring(1) : rawCode, isClose = false;
+                    if(cleanCode.endsWith('_U')) { isClose = true; cleanCode = cleanCode.slice(0, -2); } 
+                    else if(cleanCode.endsWith('_O')) { cleanCode = cleanCode.slice(0, -2); }
+
+                    if(isStart) {
+                        if(activeLines[cleanCode] && activeLines[cleanCode].length > 1) shapesToDraw.push([...activeLines[cleanCode]]);
+                        activeLines[cleanCode] = [pt];
+                    } else {
+                        if(activeLines[cleanCode]) activeLines[cleanCode].push(pt);
+                    }
+
+                    if(isClose && activeLines[cleanCode]) {
+                        let first = activeLines[cleanCode][0];
+                        activeLines[cleanCode].push({...first, code: rawCode, isClone: true});
+                        shapesToDraw.push([...activeLines[cleanCode]]);
+                        delete activeLines[cleanCode];
+                    }
+                } catch(err) {}
+            }
+        });
+        Object.values(activeLines).forEach(line => { if(line.length > 1) shapesToDraw.push(line); });
+
+        if(points.length > 0) {
+            drawData(points, shapesToDraw, color);
+            addResultItem(resultListMgeo, filename, uprOutput.join('\r\n'), '_upr.txt', points.length, color);
+            map.fitBounds(layerGroup.getBounds(), { padding: [50,50], maxZoom: 19 });
+        }
+    }
+
+    function drawData(points, shapes, color) {
+        points.forEach(p => {
+            L.circleMarker([p.lat, p.lon], { radius: 3, fillColor: color, color: 'white', weight: 1, fillOpacity: 1 }).bindPopup(`<b>${p.id}</b><br>${p.code}`).addTo(layerGroup);
+        });
+        shapes.forEach(linePts => {
+            let i = 0;
+            while(i < linePts.length - 1) {
+                let p1 = linePts[i], drawnArc = false;
+                if ((p1.code.includes('_O') || (p1.isClone && p1.code.includes('_U'))) && (i + 2 < linePts.length)) {
+                    let p2 = linePts[i+1], p3 = linePts[i+2];
+                    const arcPath = getArcPoints(p1, p2, p3);
+                    if(arcPath) { L.polyline(arcPath, { color: color, weight: 2 }).addTo(layerGroup); drawnArc = true; i += 2; continue; }
+                }
+                if(!drawnArc) {
+                    let pNext = linePts[i+1];
+                    L.polyline([[p1.lat, p1.lon], [pNext.lat, pNext.lon]], { color: color, weight: 2 }).addTo(layerGroup);
+                    i++;
+                }
+            }
+        });
+    }
+
+    function getArcPoints(p1, p2, p3) {
+        try {
+            const ox = p1.jtskX, oy = p1.jtskY;
+            const x1 = 0, y1 = 0;
+            const x2 = p2.jtskX - ox, y2 = p2.jtskY - oy;
+            const x3 = p3.jtskX - ox, y3 = p3.jtskY - oy;
+            const D = 2 * (x1 * (y2 - y3) + x2 * (y3 - y1) + x3 * (y1 - y2));
+            if (Math.abs(D) < 0.001) return null;
+            const Ux = ((x1**2 + y1**2)*(y2 - y3) + (x2**2 + y2**2)*(y3 - y1) + (x3**2 + y3**2)*(y1 - y2)) / D;
+            const Uy = ((x1**2 + y1**2)*(x3 - x2) + (x2**2 + y2**2)*(x1 - x3) + (x3**2 + y3**2)*(x2 - x1)) / D;
+            const R = Math.sqrt((x1 - Ux)**2 + (y1 - Uy)**2);
+            const a1 = Math.atan2(y1 - Uy, x1 - Ux), a3 = Math.atan2(y3 - Uy, x3 - Ux);
+            const isCCW = ((x2 - x1)*(y3 - y1) - (y2 - y1)*(x3 - x1)) > 0;
+            let start = a1, end = a3;
+            if (isCCW) { if (end < start) end += 2 * Math.PI; } else { if (end > start) end -= 2 * Math.PI; }
+            let pts = [];
+            for(let k=0; k<=30; k++) {
+                const ang = start + (k/30) * (end - start);
+                const px = Ux + R * Math.cos(ang) + ox;
+                const py = Uy + R * Math.sin(ang) + oy;
+                const wgs = proj4('EPSG:5514', 'EPSG:4326', [py, px]);
+                pts.push([wgs[1], wgs[0]]);
+            }
+            return pts;
+        } catch(e) { return null; }
+    }
+
+    /* ========================================================
+       MODUL B: IMPORT FOR TRIMBLE (Nová logika + Mapa)
+       ======================================================== */
+    const dropZoneImport = document.getElementById('dropZoneImport');
+    const fileInputImport = document.getElementById('fileInputImport');
+    const resultListImport = document.getElementById('resultListImport');
+    const resultsCardImport = document.getElementById('resultsCardImport');
+
+    dropZoneImport.onclick = () => fileInputImport.click();
+    fileInputImport.onchange = (e) => handleImportFiles(e.target.files);
+    
+    dropZoneImport.ondragover = (e) => { e.preventDefault(); dropZoneImport.classList.add('dragover'); };
+    dropZoneImport.ondragleave = (e) => { e.preventDefault(); dropZoneImport.classList.remove('dragover'); };
+    dropZoneImport.ondrop = (e) => { e.preventDefault(); dropZoneImport.classList.remove('dragover'); handleImportFiles(e.dataTransfer.files); };
+
+    function handleImportFiles(files) {
+        if(!files.length) return;
+        resultsCardImport.style.display = 'flex';
+        Array.from(files).forEach((file) => {
+            const reader = new FileReader();
+            reader.onload = (e) => processImportContent(e.target.result, file.name);
+            reader.readAsText(file);
+        });
+        fileInputImport.value = '';
+    }
+
+    function processImportContent(text, filename) {
+        const lines = text.split(/\r?\n/);
+        let outLines = [];
+        let pointsToDraw = [];
+        let count = 0;
+
+        lines.forEach(line => {
+            const parts = line.split(/[ \t,;]+/).filter(p => p.trim() !== "");
+            if (parts.length >= 4) {
+                const id = parts[0];
+                const val1 = parseFloat(parts[1].replace(',', '.'));
+                const val2 = parseFloat(parts[2].replace(',', '.'));
+                const val3 = parseFloat(parts[3].replace(',', '.'));
+                
+                if (!isNaN(val1) && !isNaN(val2)) {
+                    // Unifikácia na záporné
+                    const rawY = -Math.abs(val1);
+                    const rawX = -Math.abs(val2);
+                    
+                    // FIX: .toFixed(3) zabezpečí nuly na konci (napr. 100.500)
+                    const yStr = rawY.toFixed(3);
+                    const xStr = rawX.toFixed(3);
+                    const zStr = !isNaN(val3) ? parseFloat(val3).toFixed(3) : "0.000";
+                    const code = parts.length > 4 ? parts.slice(4).join(" ") : "";
+                    
+                    // FIX: Príprava bodov pre mapu
+                    try {
+                        const wgs = proj4('EPSG:5514', 'EPSG:4326', [rawY, rawX]);
+                        pointsToDraw.push({ id, lat: wgs[1], lon: wgs[0], code });
+                    } catch(e) {}
+
+                    let outLine = `${id},${yStr},${xStr},${zStr}`;
+                    if(code) outLine += `,${code}`;
+                    outLines.push(outLine);
+                    count++;
+                }
+            }
+        });
+
+        if(outLines.length > 0) {
+            // Vykreslenie do mapy
+            pointsToDraw.forEach(p => {
+                L.circleMarker([p.lat, p.lon], {radius:3, color:'#0C4DA2', fillColor:'#0C4DA2', fillOpacity:1})
+                 .bindPopup(`<b>${p.id}</b><br>${p.code}`).addTo(layerGroup);
+            });
+            if(pointsToDraw.length > 0) map.fitBounds(layerGroup.getBounds(), {padding:[50,50], maxZoom:19});
+
+            addResultItem(resultListImport, filename, outLines.join('\r\n'), '_TR.txt', count, '#0C4DA2');
+        }
+    }
+
+    function clearImport() {
+        resultListImport.innerHTML = '';
+        resultsCardImport.style.display = 'none';
+        layerGroup.clearLayers();
+    }
+
+    /* ========================================================
+       ZDIEĽANÉ FUNKCIE (Výpis výsledkov)
+       ======================================================== */
+    function addResultItem(targetList, name, content, suffix, count, color) {
+        const newName = name.replace(/\.[^/.]+$/, "") + suffix;
+        const blob = new Blob([content], {type:'text/plain'});
+        const url = URL.createObjectURL(blob);
+        
+        const li = document.createElement('li');
+        li.className = 'res-item';
+        li.innerHTML = `
+            <div class="res-info">
+                <span class="tag-color" style="background:${color}"></span>
+                <div>
+                    <div class="res-name">${newName}</div>
+                    <div class="res-meta">${count} bodov</div>
+                </div>
+            </div>
+            <a href="${url}" download="${newName}" class="btn btn-green">⬇ Stiahnuť</a>
+        `;
+        targetList.appendChild(li);
+    }
+
+</script>
+</body>
+</html>
