@@ -134,6 +134,11 @@
     background:var(--surface-2);color:var(--text);min-width:190px;
   }
   input[type=text]:focus{outline:2px solid var(--primary);outline-offset:-1px}
+  select{
+    font:inherit;font-size:13.5px;padding:6px 10px;border:1px solid var(--border);border-radius:9px;
+    background:var(--surface-2);color:var(--text);cursor:pointer;
+  }
+  select:focus{outline:2px solid var(--primary);outline-offset:-1px}
   .btn{
     font:inherit;font-weight:600;padding:9px 16px;border-radius:9px;border:1px solid var(--border);
     background:var(--surface-2);color:var(--text);cursor:pointer;display:inline-flex;align-items:center;gap:7px;
@@ -310,6 +315,14 @@
           <button class="btn small" id="btnPlay">▶ Prehrať trasu</button>
           <button class="btn small" id="btnPng">🖼️ Uložiť PNG</button>
           <div class="sep"></div>
+          <label>podklad
+            <select id="selBase">
+              <option value="none">žiadny</option>
+              <option value="osm">OSM mapa</option>
+              <option value="sat">letecká snímka</option>
+            </select>
+          </label>
+          <div class="sep"></div>
           <label><input type="checkbox" id="cbAll" checked> všetky body</label>
           <label><input type="checkbox" id="cbLabels" checked> popisky</label>
           <label><input type="checkbox" id="cbPath" checked> trasa</label>
@@ -325,6 +338,7 @@
           <span><span class="dot" style="background:#16a34a"></span> štart trasy</span>
           <span><span class="dot" style="background:#dc2626"></span> koniec trasy</span>
           <span>🖱️ koliesko = zoom, ťahanie = posun</span>
+          <span>🌐 podkladová mapa vyžaduje internet a súradnice v S-JTSK</span>
         </div>
       </div>
     </section>
@@ -542,6 +556,78 @@ function matchPoints(records, coordPoints){
 // === END CORE ===
 
 /* =====================================================================
+ *  Geodézia — prevod S-JTSK (Křovák, záporné Y/X) → WGS-84 → Web Mercator.
+ *  Presnosť ~2 m, čo na podkladovú mapu bohato stačí.
+ * ===================================================================== */
+const MERC_R = 6378137;
+
+/** S-JTSK (záporné Y, X) → { lat, lon } vo WGS-84, alebo null mimo rozsahu Křováka. */
+function jtskToWgs(negY, negX){
+  const Y = -negY, X = -negX;
+  if (!(Y > 100000 && Y < 1000000 && X > 900000 && X < 1300000)) return null;
+  const e = 0.081696831215303, n = 0.97992470462083;
+  const uRo = 12310230.12797036;
+  const sinUQ = 0.863499969506341, cosUQ = 0.504348889819882;
+  const sinVQ = 0.420215144586493, cosVQ = 0.907424504992097;
+  const alfa = 1.000597498371542, k = 1.003419163966575;
+
+  const ro = Math.sqrt(X * X + Y * Y);
+  const D = 2 * Math.atan(Y / (ro + X)) / n;
+  const S = 2 * Math.atan(Math.exp(1 / n * Math.log(uRo / ro))) - Math.PI / 2;
+  const sinS = Math.sin(S), cosS = Math.cos(S);
+  const sinU = sinUQ * sinS - cosUQ * cosS * Math.cos(D);
+  const cosU = Math.sqrt(1 - sinU * sinU);
+  const sinDV = Math.sin(D) * cosS / cosU;
+  const cosDV = Math.sqrt(1 - sinDV * sinDV);
+  const sinV = sinVQ * cosDV - cosVQ * sinDV;
+  const cosV = cosVQ * cosDV + sinVQ * sinDV;
+  const L = 2 * Math.atan(sinV / (1 + cosV)) / alfa;     // zem. dĺžka od Greenwicha (rad)
+  const t0 = Math.exp(2 / alfa * Math.log((1 + sinU) / cosU / k));
+  let pom = (t0 - 1) / (t0 + 1), sinB;
+  do {
+    sinB = pom;
+    pom = t0 * Math.exp(e * Math.log((1 + e * sinB) / (1 - e * sinB)));
+    pom = (pom - 1) / (pom + 1);
+  } while (Math.abs(pom - sinB) > 1e-15);
+  const B = Math.atan(pom / Math.sqrt(1 - pom * pom));   // zem. šírka na Besseli (rad)
+
+  /* Bessel → geocentrické súradnice */
+  let a = 6377397.15508, f1 = 299.152812853, H = 300;
+  let e2 = 1 - Math.pow(1 - 1 / f1, 2);
+  const rho = a / Math.sqrt(1 - e2 * Math.sin(B) ** 2);
+  const x1 = (rho + H) * Math.cos(B) * Math.cos(L);
+  const y1 = (rho + H) * Math.cos(B) * Math.sin(L);
+  const z1 = ((1 - e2) * rho + H) * Math.sin(B);
+
+  /* Helmertova transformácia S-JTSK → WGS-84 */
+  const sec = Math.PI / 180 / 3600, m = 3.543e-6;
+  const wx = 4.99821 * sec, wy = 1.58676 * sec, wz = 5.2611 * sec;
+  const x2 = 570.69 + (1 + m) * (x1 - wz * y1 + wy * z1);
+  const y2 = 85.69  + (1 + m) * (wz * x1 + y1 - wx * z1);
+  const z2 = 462.84 + (1 + m) * (-wy * x1 + wx * y1 + z1);
+
+  /* geocentrické → geodetické WGS-84 */
+  a = 6378137.0; f1 = 298.257223563;
+  const ab = f1 / (f1 - 1);
+  const p = Math.sqrt(x2 * x2 + y2 * y2);
+  e2 = 1 - Math.pow(1 - 1 / f1, 2);
+  const th = Math.atan(z2 * ab / p);
+  const t = (z2 + e2 * ab * a * Math.sin(th) ** 3) / (p - e2 * a * Math.cos(th) ** 3);
+  return {
+    lat: Math.atan(t) * 180 / Math.PI,
+    lon: 2 * Math.atan(y2 / (p + x2)) * 180 / Math.PI,
+  };
+}
+
+/** WGS-84 → Web Mercator (EPSG:3857) v metroch. */
+function wgsToMercator(lat, lon){
+  return {
+    e: MERC_R * lon * Math.PI / 180,
+    n: MERC_R * Math.log(Math.tan(Math.PI / 4 + lat * Math.PI / 360)),
+  };
+}
+
+/* =====================================================================
  *  QuickGCP — UI
  * ===================================================================== */
 function initQuickGCP(){
@@ -679,13 +765,89 @@ function initQuickGCP(){
   const map = (() => {
     const canvas = $('map'), tip = $('mapTip');
     const ctx = canvas.getContext('2d');
-    let allPoints = [];          // { name, y, x, h, e, n, used }
+    let allPoints = [];          // { name, y, x, h, e, n, used, lat?, lon? }
     let path = [];               // body trasy v poradí merania
     let view = { scale: 1, tx: 0, ty: 0 };
     let anim = { running: false, t: 0, raf: null };
     let hover = null;
+    let geo = false;             // true = svet mapy je Web Mercator, podklad je možný
 
     const cssVar = name => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+
+    /* ---------- podkladová mapa (dlaždice) ---------- */
+    const BASEMAPS = {
+      osm: {
+        url: (z, x, y) => `https://tile.openstreetmap.org/${z}/${x}/${y}.png`,
+        attribution: '© OpenStreetMap contributors',
+        maxZoom: 19,
+      },
+      sat: {
+        url: (z, x, y) => `https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/${z}/${y}/${x}`,
+        attribution: '© Esri, Maxar, Earthstar Geographics',
+        maxZoom: 19,
+      },
+    };
+    const selBase = $('selBase');
+    selBase.value = localStorage.getItem('textkit-basemap') || 'none';
+    selBase.addEventListener('change', () => {
+      if (selBase.value !== 'none' && allPoints.length && !geo){
+        toast('Súradnice nie sú v S-JTSK — podklad sa nedá umiestniť.');
+        selBase.value = 'none';
+      }
+      localStorage.setItem('textkit-basemap', selBase.value);
+      draw(null);
+    });
+
+    const tileCache = new Map();   // "z/x/y" -> {img, ok}
+    function getTile(base, z, x, y){
+      const key = selBase.value + '/' + z + '/' + x + '/' + y;
+      let t = tileCache.get(key);
+      if (t) return t;
+      if (tileCache.size > 400){           // jednoduchá ochrana pamäte
+        for (const k of [...tileCache.keys()].slice(0, 200)) tileCache.delete(k);
+      }
+      t = { img: new Image(), ok: false };
+      t.img.crossOrigin = 'anonymous';     // kvôli exportu PNG
+      t.img.onload = () => { t.ok = true; draw(null); };
+      t.img.src = base.url(z, x, y);
+      tileCache.set(key, t);
+      return t;
+    }
+
+    function drawBasemap(rect){
+      const base = BASEMAPS[selBase.value];
+      if (!base || !geo || !allPoints.length) return;
+      const worldHalf = Math.PI * MERC_R;
+      let z = Math.round(Math.log2(view.scale * 2 * worldHalf / 256));
+      z = Math.max(0, Math.min(base.maxZoom, z));
+      const tiles = Math.pow(2, z);
+      const T = 2 * worldHalf / tiles;     // veľkosť dlaždice v metroch
+      const e0 = (0 - view.tx) / view.scale,        e1 = (rect.width - view.tx) / view.scale;
+      const n0 = (view.ty - rect.height) / view.scale, n1 = view.ty / view.scale;
+      const x0 = Math.max(0, Math.floor((e0 + worldHalf) / T));
+      const x1 = Math.min(tiles - 1, Math.floor((e1 + worldHalf) / T));
+      const y0 = Math.max(0, Math.floor((worldHalf - n1) / T));
+      const y1 = Math.min(tiles - 1, Math.floor((worldHalf - n0) / T));
+      if ((x1 - x0 + 1) * (y1 - y0 + 1) > 64) return; // priveľa dlaždíc — počkaj na zoom
+      const px = T * view.scale;
+      for (let xi = x0; xi <= x1; xi++){
+        for (let yi = y0; yi <= y1; yi++){
+          const t = getTile(base, z, xi, yi);
+          if (!t.ok) continue;
+          const sx = (-worldHalf + xi * T) * view.scale + view.tx;
+          const sy = -(worldHalf - yi * T) * view.scale + view.ty;
+          ctx.drawImage(t.img, sx, sy, px + 0.6, px + 0.6);
+        }
+      }
+      /* povinné označenie zdroja mapy (ostane aj v PNG exporte) */
+      ctx.font = '10px sans-serif';
+      const w = ctx.measureText(base.attribution).width + 10;
+      ctx.fillStyle = 'rgba(255,255,255,.75)';
+      ctx.fillRect(rect.width - w, rect.height - 16, w, 16);
+      ctx.fillStyle = '#334155';
+      ctx.textAlign = 'left';
+      ctx.fillText(base.attribution, rect.width - w + 5, rect.height - 5);
+    }
 
     function resize(){
       const dpr = window.devicePixelRatio || 1;
@@ -700,11 +862,23 @@ function initQuickGCP(){
 
     function setData(coords, rows){
       const usedNames = new Set(rows.filter(r => r.point).map(r => r.point.name));
-      allPoints = coords.map(p => ({ ...p, e: -p.y, n: -p.x, used: usedNames.has(p.name) }));
-      path = rows.filter(r => r.point).map(r => {
-        const p = r.point;
-        return { name: p.name, datName: r.rec.name, e: -p.y, n: -p.x, h: p.h };
+      /* svet mapy: Web Mercator ak sú všetky body v rozsahu S-JTSK, inak lokálna rovina */
+      const wgs = coords.map(p => jtskToWgs(p.y, p.x));
+      geo = wgs.every(w => w !== null);
+      allPoints = coords.map((p, i) => {
+        const m = geo ? wgsToMercator(wgs[i].lat, wgs[i].lon) : { e: -p.y, n: -p.x };
+        return { ...p, e: m.e, n: m.n, used: usedNames.has(p.name),
+                 lat: geo ? wgs[i].lat : null, lon: geo ? wgs[i].lon : null };
       });
+      const byName = new Map(allPoints.map(p => [p.name, p]));
+      path = rows.filter(r => r.point).map(r => {
+        const p = byName.get(r.point.name);
+        return { name: p.name, datName: r.rec.name, e: p.e, n: p.n, h: p.h };
+      });
+      if (selBase.value !== 'none' && !geo){
+        toast('Súradnice nie sú v S-JTSK — podklad je vypnutý.');
+        selBase.value = 'none';
+      }
       stopAnim();
       fit();
     }
@@ -741,6 +915,7 @@ function initQuickGCP(){
         ctx.fillText('Mapa sa zobrazí po nahratí oboch súborov.', rect.width / 2, rect.height / 2);
         return;
       }
+      drawBasemap(rect);
       const showLabels = $('cbLabels').checked;
       const showPath = $('cbPath').checked;
       const showOrder = $('cbOrder').checked;
@@ -774,9 +949,13 @@ function initQuickGCP(){
         ctx.arc(s.x, s.y, p.used ? 5 : 3.5, 0, Math.PI * 2);
         ctx.fillStyle = p.used ? '#0d9488' : '#94a3b8';
         ctx.fill();
-        if (p.used){ ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5; ctx.stroke(); }
+        if (p.used || selBase.value !== 'none'){ ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5; ctx.stroke(); }
         if (showLabels){
-          ctx.fillStyle = cssVar('--text-soft');
+          /* biele halo, aby bol text čitateľný aj na podklade */
+          ctx.strokeStyle = 'rgba(255,255,255,.85)';
+          ctx.lineWidth = 3;
+          ctx.strokeText(p.name, s.x + 7, s.y - 6);
+          ctx.fillStyle = selBase.value === 'none' ? cssVar('--text-soft') : '#1e293b';
           ctx.fillText(p.name, s.x + 7, s.y - 6);
         }
       }
@@ -879,6 +1058,7 @@ function initQuickGCP(){
           const visits = path.reduce((acc, q, i) => (q.name === best.name && acc.push(i + 1), acc), []);
           tip.innerHTML = `<b>${best.name}</b><br>Y: ${best.y.toFixed(3)}<br>X: ${best.x.toFixed(3)}`
             + (best.h !== null && !Number.isNaN(best.h) ? `<br>H: ${best.h.toFixed(3)}` : '')
+            + (best.lat !== null ? `<br>${best.lat.toFixed(7)}° N, ${best.lon.toFixed(7)}° E` : '')
             + (visits.length ? `<br>meraný ako č. ${visits.join(', ')}` : '<br><i>nemeraný</i>');
           tip.style.display = 'block';
         } else {
@@ -917,11 +1097,15 @@ function initQuickGCP(){
     $('btnFit').addEventListener('click', fit);
     $('btnPng').addEventListener('click', () => {
       if (!allPoints.length) return toast('Najprv nahraj oba súbory.');
-      const a = document.createElement('a');
-      a.href = canvas.toDataURL('image/png');
-      a.download = 'mapa_bodov.png';
-      a.click();
-      toast('Mapa uložená ✔');
+      try{
+        const a = document.createElement('a');
+        a.href = canvas.toDataURL('image/png');
+        a.download = 'mapa_bodov.png';
+        a.click();
+        toast('Mapa uložená ✔');
+      }catch(err){
+        toast('Export zlyhal — skús vypnúť podkladovú mapu.');
+      }
     });
     ['cbAll', 'cbLabels', 'cbPath', 'cbOrder'].forEach(id =>
       $(id).addEventListener('change', () => draw(null)));
