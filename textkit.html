@@ -6,50 +6,51 @@
 <title>TextKit — textové transformátory</title>
 <style>
   :root{
-    /* paleta */
+    /* paleta — primárna oranžová + teplé neutrály a bridlicová sekundárna */
     --color-orange:#F99202;
-    --color-brown:#837052;
-    --color-blue:#0C4DA2;
-    --color-blue-light:#0099ff;
 
-    --bg:#f4f6fa;
+    --bg:#faf7f1;
     --surface:#ffffff;
-    --surface-2:#eef1f6;
-    --border:#e1e5ec;
-    --text:#1c1b1f;
-    --text-soft:#5f6368;
-    --text-brown:var(--color-brown);
-    --primary:var(--color-blue);
-    --primary-light:var(--color-blue-light);
-    --primary-soft:#e4edf9;
-    --accent:var(--color-orange);
-    --accent-soft:#fdeed2;
+    --surface-2:#f5f1e8;
+    --border:#e8e1d3;
+    --text:#23201b;
+    --text-soft:#6e675d;
+    --text-warm:#8c8170;
+    --primary:var(--color-orange);
+    --primary-ink:#b26a00;          /* oranžová pre texty a ikony (čitateľný kontrast) */
+    --primary-soft:#fdefd8;
+    --on-primary:#271400;
+    --secondary:#4e5d65;
+    --secondary-soft:#e9eef1;
     --ok:#2e7d32;
     --warn:#ef6c00;
     --err:#c62828;
-    --appbar:var(--color-blue);
-    --elev-1:0 1px 2px rgba(0,0,0,.12),0 1px 4px rgba(0,0,0,.10);
-    --elev-2:0 2px 4px rgba(0,0,0,.14),0 3px 8px rgba(0,0,0,.10);
-    --elev-4:0 4px 10px rgba(0,0,0,.18),0 6px 20px rgba(0,0,0,.12);
+    --appbar:var(--color-orange);
+    --on-appbar:#271400;
+    --elev-1:0 1px 2px rgba(60,45,20,.14),0 1px 4px rgba(60,45,20,.10);
+    --elev-2:0 2px 4px rgba(60,45,20,.16),0 3px 8px rgba(60,45,20,.10);
+    --elev-4:0 4px 10px rgba(60,45,20,.20),0 6px 20px rgba(60,45,20,.12);
     --radius:8px;
   }
   [data-theme="dark"]{
-    --bg:#121212;
-    --surface:#1e1e1e;
-    --surface-2:#2b2b2b;
-    --border:#3c3c3c;
-    --text:#e6e1e5;
-    --text-soft:#9aa0a6;
-    --text-brown:#b8a583;
-    --primary:var(--color-blue-light);
-    --primary-light:#66c2ff;
-    --primary-soft:#0e2a4a;
-    --accent:var(--color-orange);
-    --accent-soft:#46330e;
+    --bg:#161310;
+    --surface:#211e19;
+    --surface-2:#2c2820;
+    --border:#413b30;
+    --text:#ede6da;
+    --text-soft:#a89e8f;
+    --text-warm:#b5a88f;
+    --primary:#ffab40;
+    --primary-ink:#ffbe6b;
+    --primary-soft:#3e2c10;
+    --on-primary:#2a1700;
+    --secondary:#9fb1ba;
+    --secondary-soft:#2d3940;
     --ok:#81c995;
     --warn:#fdd663;
     --err:#f28b82;
-    --appbar:#0a3d80;
+    --appbar:#211e19;
+    --on-appbar:#ede6da;
     --elev-1:0 1px 3px rgba(0,0,0,.5);
     --elev-2:0 2px 6px rgba(0,0,0,.5);
     --elev-4:0 4px 14px rgba(0,0,0,.6);
@@ -67,20 +68,23 @@
   .appbar{
     position:sticky;top:0;z-index:30;height:60px;
     display:flex;align-items:center;gap:14px;padding:0 22px;
-    background:var(--appbar);color:#fff;box-shadow:var(--elev-2);
+    background:var(--appbar);color:var(--on-appbar);box-shadow:var(--elev-2);
   }
   .appbar .logo{
     width:36px;height:36px;border-radius:50%;display:grid;place-items:center;font-size:18px;
-    background:var(--color-orange);color:#fff;box-shadow:var(--elev-1);
+    background:#fff;box-shadow:var(--elev-1);
   }
+  [data-theme="dark"] .appbar .logo{background:var(--color-orange)}
   .appbar-title{font-size:19px;font-weight:500;letter-spacing:.4px}
-  .appbar-title small{font-size:12.5px;font-weight:400;opacity:.75;margin-left:10px;letter-spacing:.6px}
+  .appbar-title small{font-size:12.5px;font-weight:400;opacity:.78;margin-left:10px;letter-spacing:.6px}
   .appbar .spacer{flex:1}
   .theme-btn{
-    border:none;background:rgba(255,255,255,.14);color:#fff;width:40px;height:40px;
+    border:none;background:rgba(0,0,0,.10);color:var(--on-appbar);width:40px;height:40px;
     border-radius:50%;font-size:17px;cursor:pointer;transition:background .15s;
   }
-  .theme-btn:hover{background:rgba(255,255,255,.28)}
+  .theme-btn:hover{background:rgba(0,0,0,.20)}
+  [data-theme="dark"] .theme-btn{background:rgba(255,255,255,.10)}
+  [data-theme="dark"] .theme-btn:hover{background:rgba(255,255,255,.22)}
 
   .app{display:flex;min-height:calc(100vh - 60px)}
 
@@ -92,7 +96,7 @@
   }
   .nav-label{
     font-size:11px;font-weight:500;text-transform:uppercase;letter-spacing:1.4px;
-    color:var(--text-brown);padding:6px 14px 8px;
+    color:var(--text-warm);padding:6px 14px 8px;
   }
   .nav-btn{
     display:flex;align-items:center;gap:12px;width:100%;padding:11px 14px;border:none;border-radius:24px;
@@ -100,13 +104,12 @@
     transition:background .15s;
   }
   .nav-btn:hover{background:var(--surface-2)}
-  .nav-btn.active{background:var(--primary-soft);color:var(--primary)}
+  .nav-btn.active{background:var(--primary-soft);color:var(--primary-ink)}
   .nav-btn .ico{width:20px;text-align:center}
   .nav-btn .tag{
     margin-left:auto;font-size:10px;font-weight:500;padding:2px 8px;border-radius:99px;
-    background:var(--accent-soft);color:var(--color-brown);
+    background:var(--secondary-soft);color:var(--secondary);
   }
-  [data-theme="dark"] .nav-btn .tag{color:var(--text-brown)}
   .sidebar .spacer{flex:1}
 
   /* ---------- hlavný obsah ---------- */
@@ -116,11 +119,12 @@
   @keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
   .tool-head{margin-bottom:22px}
   .tool-head h1{font-size:25px;font-weight:500;display:flex;align-items:center;gap:12px}
-  .tool-head .sub{color:var(--text-brown);margin-top:6px;max-width:760px;line-height:1.55}
+  .tool-head .sub{color:var(--text-warm);margin-top:6px;max-width:760px;line-height:1.55}
   .pill{
     font-size:11px;font-weight:600;padding:3px 11px;border-radius:99px;letter-spacing:.4px;
-    background:var(--accent);color:#fff;vertical-align:middle;
+    background:var(--secondary);color:#fff;vertical-align:middle;
   }
+  [data-theme="dark"] .pill{color:#161310}
 
   .card{
     background:var(--surface);border-radius:var(--radius);
@@ -134,7 +138,7 @@
   }
   .step-num{
     width:26px;height:26px;border-radius:50%;display:inline-grid;place-items:center;
-    font-size:13px;font-weight:600;color:#fff;background:var(--primary);flex-shrink:0;
+    font-size:13px;font-weight:600;color:var(--on-primary);background:var(--primary);flex-shrink:0;
   }
 
   /* ---------- dropzóny ---------- */
@@ -144,12 +148,12 @@
     border:2px dashed var(--border);border-radius:var(--radius);padding:24px 16px;text-align:center;cursor:pointer;
     background:var(--surface-2);transition:border-color .15s,background .15s;
   }
-  .dropzone:hover,.dropzone.drag{border-color:var(--primary-light);background:var(--primary-soft)}
+  .dropzone:hover,.dropzone.drag{border-color:var(--primary);background:var(--primary-soft)}
   .dropzone .dz-ico{font-size:27px}
   .dropzone .dz-title{font-weight:500;margin-top:6px}
-  .dropzone .dz-hint{font-size:12.5px;color:var(--text-brown);margin-top:3px}
+  .dropzone .dz-hint{font-size:12.5px;color:var(--text-warm);margin-top:3px}
   .dropzone .dz-file{
-    display:none;margin-top:10px;font-size:13px;font-weight:500;color:var(--primary);
+    display:none;margin-top:10px;font-size:13px;font-weight:500;color:var(--primary-ink);
     background:var(--surface);border-radius:99px;padding:6px 14px;box-shadow:var(--elev-1);
     word-break:break-all;
   }
@@ -163,13 +167,13 @@
     background:var(--surface-2);border-radius:var(--radius);padding:10px 14px;
     border-left:3px solid var(--primary);
   }
-  .chip b{font-size:19px;color:var(--primary)}
-  .chip span{font-size:11.5px;color:var(--text-brown)}
+  .chip b{font-size:19px;color:var(--primary-ink)}
+  .chip span{font-size:11.5px;color:var(--text-warm)}
   .chip.c-ok{border-left-color:var(--ok)} .chip.c-ok b{color:var(--ok)}
   .chip.c-warn{border-left-color:var(--warn)} .chip.c-warn b{color:var(--warn)}
   .chip.c-err{border-left-color:var(--err)} .chip.c-err b{color:var(--err)}
   .actions{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-bottom:16px}
-  .actions label{font-size:13px;color:var(--text-brown)}
+  .actions label{font-size:13px;color:var(--text-warm)}
   input[type=text]{
     font:inherit;padding:9px 12px;border:1px solid var(--border);border-radius:4px;
     background:var(--surface);color:var(--text);min-width:190px;
@@ -186,12 +190,12 @@
     position:relative;overflow:hidden;
     font:inherit;font-size:13.5px;font-weight:500;text-transform:uppercase;letter-spacing:.7px;
     padding:10px 18px;border-radius:4px;border:none;
-    background:transparent;color:var(--primary);cursor:pointer;display:inline-flex;align-items:center;gap:8px;
+    background:transparent;color:var(--primary-ink);cursor:pointer;display:inline-flex;align-items:center;gap:8px;
     transition:background .15s,box-shadow .15s;
   }
   .btn:hover{background:var(--primary-soft)}
-  .btn.primary{background:var(--primary);color:#fff;box-shadow:var(--elev-1)}
-  .btn.primary:hover{box-shadow:var(--elev-2);filter:brightness(1.07)}
+  .btn.primary{background:var(--primary);color:var(--on-primary);box-shadow:var(--elev-1)}
+  .btn.primary:hover{box-shadow:var(--elev-2);filter:brightness(1.05)}
   .btn:disabled{opacity:.4;cursor:not-allowed}
   .btn.small{padding:7px 12px;font-size:12.5px}
   .nav-btn,.tab{position:relative;overflow:hidden}
@@ -209,35 +213,34 @@
     cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;
   }
   .tab:hover{background:var(--surface-2)}
-  .tab.active{color:var(--primary);border-bottom-color:var(--primary)}
+  .tab.active{color:var(--primary-ink);border-bottom-color:var(--primary)}
   .table-wrap{max-height:380px;overflow:auto;border:1px solid var(--border);border-radius:var(--radius)}
   table{width:100%;border-collapse:collapse;font-size:13.5px}
   th,td{padding:9px 13px;text-align:left;border-bottom:1px solid var(--border);white-space:nowrap}
   th{
     position:sticky;top:0;background:var(--surface-2);font-size:11.5px;font-weight:500;
-    text-transform:uppercase;letter-spacing:.8px;color:var(--text-brown);z-index:1;
+    text-transform:uppercase;letter-spacing:.8px;color:var(--text-warm);z-index:1;
   }
   tr:last-child td{border-bottom:none}
   tr:hover td{background:var(--primary-soft)}
   td.num{font-variant-numeric:tabular-nums}
   .badge{font-size:11.5px;font-weight:600;padding:2px 10px;border-radius:99px}
   .badge.ok{background:#e3f2e5;color:#2e7d32}
-  .badge.dup{background:var(--accent-soft);color:#b36b00}
+  .badge.dup{background:var(--secondary-soft);color:var(--secondary)}
   .badge.err{background:#fde3e1;color:#c62828}
   [data-theme="dark"] .badge.ok{background:#1e3b22;color:#81c995}
-  [data-theme="dark"] .badge.dup{background:#46330e;color:#fdd663}
   [data-theme="dark"] .badge.err{background:#4a1d1a;color:#f28b82}
   textarea.preview{
     width:100%;min-height:300px;resize:vertical;font:13px/1.55 "Roboto Mono",ui-monospace,Consolas,monospace;
     background:var(--surface-2);color:var(--text);border:1px solid var(--border);border-radius:var(--radius);padding:12px;
   }
-  .empty-note{color:var(--text-brown);font-size:14px;padding:18px;text-align:center}
+  .empty-note{color:var(--text-warm);font-size:14px;padding:18px;text-align:center}
   .alert{
     border-radius:var(--radius);padding:12px 14px;font-size:13.5px;margin-bottom:14px;display:none;
     background:#fde3e1;color:#c62828;border-left:4px solid #c62828;white-space:pre-wrap;
   }
   [data-theme="dark"] .alert{background:#4a1d1a;color:#f28b82;border-left-color:#f28b82}
-  .alert.warn{background:var(--accent-soft);color:#9a5b00;border-left-color:var(--color-orange)}
+  .alert.warn{background:var(--primary-soft);color:#9a5b00;border-left-color:var(--color-orange)}
   [data-theme="dark"] .alert.warn{color:#fdd663}
   .alert.show{display:block}
 
@@ -254,8 +257,8 @@
     background:var(--surface);border-radius:6px;box-shadow:var(--elev-4);
     padding:9px 12px;font-size:12.5px;line-height:1.5;white-space:nowrap;
   }
-  .map-tip b{color:var(--primary)}
-  .legend{display:flex;flex-wrap:wrap;gap:16px;margin-top:12px;font-size:12.5px;color:var(--text-brown)}
+  .map-tip b{color:var(--primary-ink)}
+  .legend{display:flex;flex-wrap:wrap;gap:16px;margin-top:12px;font-size:12.5px;color:var(--text-warm)}
   .legend span{display:flex;align-items:center;gap:6px}
   .dot{width:11px;height:11px;border-radius:50%;display:inline-block}
 
@@ -267,7 +270,7 @@
   .tpl-box .big{font-size:34px}
   code{
     background:var(--surface-2);border-radius:4px;padding:1px 6px;
-    font-size:13px;font-family:"Roboto Mono",ui-monospace,Consolas,monospace;color:var(--primary);
+    font-size:13px;font-family:"Roboto Mono",ui-monospace,Consolas,monospace;color:var(--primary-ink);
   }
 
   /* ---------- snackbar ---------- */
@@ -276,7 +279,7 @@
     background:#323232;color:#fff;padding:13px 22px;border-radius:4px;font-size:14px;
     transition:transform .25s ease;box-shadow:var(--elev-4);
   }
-  [data-theme="dark"] .toast{background:#e6e1e5;color:#1c1b1f}
+  [data-theme="dark"] .toast{background:#ede6da;color:#23201b}
   .toast.show{transform:translateX(-50%) translateY(0)}
 
   @media(max-width:720px){
@@ -402,11 +405,12 @@
         </div>
         <div class="legend">
           <span><span class="dot" style="background:#9e9e9e"></span> bod zo zoznamu</span>
-          <span><span class="dot" style="background:#0C4DA2"></span> meraný bod</span>
+          <span><span class="dot" style="background:#F99202"></span> meraný bod</span>
           <span><span class="dot" style="background:#2e7d32"></span> štart trasy</span>
           <span><span class="dot" style="background:#c62828"></span> koniec trasy</span>
           <span>🖱️ koliesko = zoom, ťahanie = posun</span>
           <span>🌐 podkladová mapa vyžaduje internet a súradnice v S-JTSK</span>
+          <span id="geoEngine"></span>
         </div>
       </div>
     </section>
@@ -645,10 +649,43 @@ function matchPoints(records, coordPoints){
  * ===================================================================== */
 const MERC_R = 6378137;
 
+/** Je súradnica (záporné Y, X) v rozsahu Křovákovho zobrazenia? */
+function inKrovakRange(negY, negX){
+  const Y = -negY, X = -negX;
+  return Y > 100000 && Y < 1000000 && X > 900000 && X < 1300000;
+}
+
+/* proj4js sa načítava z CDN na pozadí — keď nie je internet, použije sa
+ * vstavaný prevod nižšie (rozdiel je len v centimetroch). */
+const JTSK_DEF = '+proj=krovak +lat_0=49.5 +lon_0=24.83333333333333'
+  + ' +alpha=30.28813972222222 +k=0.9999 +x_0=0 +y_0=0 +ellps=bessel'
+  + ' +towgs84=485.021,169.465,483.839,7.786342,4.397554,4.102655,0 +units=m +no_defs';
+
+(function loadProj4(){
+  const s = document.createElement('script');
+  s.src = 'https://cdn.jsdelivr.net/npm/proj4@2.15.0/dist/proj4.js';
+  s.async = true;
+  s.onload = () => window.dispatchEvent(new Event('proj4-ready'));
+  document.head.appendChild(s);
+})();
+
+/** Prevod bodu do WGS-84: proj4js ak je dostupný, inak vstavaný algoritmus. */
+function convertJtsk(negY, negX){
+  if (!inKrovakRange(negY, negX)) return null;
+  if (window.proj4){
+    try{
+      const [lon, lat] = proj4(JTSK_DEF, 'WGS84', [negY, negX]);
+      return { lat, lon, engine: 'proj4js' };
+    }catch(err){ /* padá späť na vstavaný prevod */ }
+  }
+  const r = jtskToWgs(negY, negX);
+  return r && { ...r, engine: 'vstavaný (offline)' };
+}
+
 /** S-JTSK (záporné Y, X) → { lat, lon } vo WGS-84, alebo null mimo rozsahu Křováka. */
 function jtskToWgs(negY, negX){
+  if (!inKrovakRange(negY, negX)) return null;
   const Y = -negY, X = -negX;
-  if (!(Y > 100000 && Y < 1000000 && X > 900000 && X < 1300000)) return null;
   const e = 0.081696831215303, n = 0.97992470462083;
   const uRo = 12310230.12797036;
   const sinUQ = 0.863499969506341, cosUQ = 0.504348889819882;
@@ -683,12 +720,12 @@ function jtskToWgs(negY, negX){
   const y1 = (rho + H) * Math.cos(B) * Math.sin(L);
   const z1 = ((1 - e2) * rho + H) * Math.sin(B);
 
-  /* Helmertova transformácia S-JTSK → WGS-84 */
-  const sec = Math.PI / 180 / 3600, m = 3.543e-6;
-  const wx = 4.99821 * sec, wy = 1.58676 * sec, wz = 5.2611 * sec;
-  const x2 = 570.69 + (1 + m) * (x1 - wz * y1 + wy * z1);
-  const y2 = 85.69  + (1 + m) * (wz * x1 + y1 - wx * z1);
-  const z2 = 462.84 + (1 + m) * (-wy * x1 + wx * y1 + z1);
+  /* Helmertova transformácia S-JTSK → WGS-84 (slovenská 7-parametrová sada) */
+  const sec = Math.PI / 180 / 3600, m = 0;
+  const wx = 7.786342 * sec, wy = 4.397554 * sec, wz = 4.102655 * sec;
+  const x2 = 485.021 + (1 + m) * (x1 - wz * y1 + wy * z1);
+  const y2 = 169.465 + (1 + m) * (wz * x1 + y1 - wx * z1);
+  const z2 = 483.839 + (1 + m) * (-wy * x1 + wx * y1 + z1);
 
   /* geocentrické → geodetické WGS-84 */
   a = 6378137.0; f1 = 298.257223563;
@@ -944,11 +981,15 @@ function initQuickGCP(){
     }
     new ResizeObserver(resize).observe(canvas);
 
+    let lastData = null;   // pre prepočet, keď sa proj4js donačíta dodatočne
+
     function setData(coords, rows){
+      lastData = { coords, rows };
       const usedNames = new Set(rows.filter(r => r.point).map(r => r.point.name));
       /* svet mapy: Web Mercator ak sú všetky body v rozsahu S-JTSK, inak lokálna rovina */
-      const wgs = coords.map(p => jtskToWgs(p.y, p.x));
+      const wgs = coords.map(p => convertJtsk(p.y, p.x));
       geo = wgs.every(w => w !== null);
+      $('geoEngine').textContent = geo && wgs.length ? `prevod do WGS-84: ${wgs[0].engine}` : '';
       allPoints = coords.map((p, i) => {
         const m = geo ? wgsToMercator(wgs[i].lat, wgs[i].lon) : { e: -p.y, n: -p.x };
         return { ...p, e: m.e, n: m.n, used: usedNames.has(p.name),
@@ -1052,7 +1093,7 @@ function initQuickGCP(){
           ctx.font = 'bold 10px sans-serif';
           path.forEach((p, i) => {
             const s = toScreen(p);
-            ctx.fillStyle = '#F99202';
+            ctx.fillStyle = '#546E7A';
             ctx.beginPath(); ctx.arc(s.x - 10, s.y + 10, 8, 0, Math.PI * 2); ctx.fill();
             ctx.fillStyle = '#fff'; ctx.textAlign = 'center';
             ctx.fillText(String(i + 1), s.x - 10, s.y + 13.5);
@@ -1069,7 +1110,7 @@ function initQuickGCP(){
         const a = toScreen(path[i]), b = toScreen(path[i + 1]);
         const x = a.x + (b.x - a.x) * f, y = a.y + (b.y - a.y) * f;
         ctx.beginPath(); ctx.arc(x, y, 8, 0, Math.PI * 2);
-        ctx.fillStyle = '#0099ff'; ctx.fill();
+        ctx.fillStyle = '#1E88E5'; ctx.fill();
         ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.stroke();
       }
     }
@@ -1194,6 +1235,8 @@ function initQuickGCP(){
     ['cbAll', 'cbLabels', 'cbPath', 'cbOrder'].forEach(id =>
       $(id).addEventListener('change', () => draw(null)));
     window.addEventListener('textkit-theme', () => draw(null));
+    /* proj4js sa donačítal po nahratí dát → prepočítaj polohy presnejším prevodom */
+    window.addEventListener('proj4-ready', () => { if (lastData) setData(lastData.coords, lastData.rows); });
 
     resize();
     return { setData };
