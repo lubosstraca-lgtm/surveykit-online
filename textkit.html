@@ -235,6 +235,11 @@
   .badge.err{background:#fde3e1;color:#c62828}
   [data-theme="dark"] .badge.ok{background:#1e3b22;color:#81c995}
   [data-theme="dark"] .badge.err{background:#4a1d1a;color:#f28b82}
+  /* zvýraznenie duplicitných riadkov v DupliCheck */
+  tr.dup-row td{background:var(--primary-soft)}
+  tr.dup-row:hover td{background:var(--primary-soft);filter:brightness(.97)}
+  tr.dup-row td:nth-child(2){font-weight:700;color:var(--primary-ink)}
+  tr.dup-row td:first-child{box-shadow:inset 3px 0 0 var(--primary)}
   textarea.preview{
     width:100%;min-height:300px;resize:vertical;font:13px/1.55 "JetBrains Mono","Roboto Mono",ui-monospace,Consolas,monospace;
     background:var(--surface-2);color:var(--text);border:1px solid var(--border);border-radius:var(--radius);padding:12px;
@@ -309,7 +314,7 @@
   <aside class="sidebar">
     <div class="nav-label">Transformátory</div>
     <button class="nav-btn active" data-tool="quickgcp"><span class="ico">📍</span> QuickGCP</button>
-    <button class="nav-btn" data-tool="template1"><span class="ico">🧩</span> Template1 <span class="tag">čoskoro</span></button>
+    <button class="nav-btn" data-tool="duplicheck"><span class="ico">🔍</span> DupliCheck</button>
     <button class="nav-btn" data-tool="template2"><span class="ico">🧩</span> Template2 <span class="tag">čoskoro</span></button>
     <div class="spacer"></div>
   </aside>
@@ -420,19 +425,51 @@
       </div>
     </section>
 
-    <!-- ================= Template1 ================= -->
-    <section class="tool" id="tool-template1">
+    <!-- ================= DupliCheck ================= -->
+    <section class="tool" id="tool-duplicheck">
       <div class="tool-head">
-        <h1>🧩 Template1 <span class="pill">pripravené</span></h1>
-        <p class="sub">Miesto pre ďalší textový transformátor.</p>
+        <h1>🔍 DupliCheck <span class="pill">v1.0</span></h1>
+        <p class="sub">Extrahuje čísla bodov z binárneho GCP súboru (<code>.dat</code>) a vypíše ich
+        v poradí, v akom boli skenované. Duplicitné čísla bodov zvýrazní, takže hneď vidno,
+        ktoré body sa naskenovali viackrát.</p>
       </div>
+
+      <!-- step 1: input -->
       <div class="card">
-        <div class="tpl-box">
-          <div class="big">🚧</div>
-          <p><b>Tu pribudne ďalší transformátor.</b></p>
-          <p>Nový nástroj pridáš tak, že skopíruješ sekciu <code>&lt;section class="tool" id="tool-..."&gt;</code>,
-          pridáš tlačidlo do bočného menu s <code>data-tool="..."</code><br>
-          a logiku zaregistruješ v objekte <code>Tools</code> v skripte na konci súboru.</p>
+        <h2><span class="step-num">1</span> Vstupný súbor</h2>
+        <div class="dropzone" id="dcDz">
+          <div class="dz-ico">🗂️</div>
+          <div class="dz-title">GCP súbor (.dat)</div>
+          <div class="dz-hint">binárny súbor s číslami skenovaných bodov — pretiahni sem alebo klikni</div>
+          <div class="dz-file" id="dcDzFile"></div>
+          <input type="file" id="dcFile" hidden>
+        </div>
+        <div class="alert" id="dcErr"></div>
+      </div>
+
+      <!-- step 2: result -->
+      <div class="card">
+        <h2><span class="step-num">2</span> Výsledok</h2>
+        <div class="chips" id="dcChips" style="display:none">
+          <div class="chip"><b id="dcTotal">–</b><span>skenovaných bodov</span></div>
+          <div class="chip c-ok"><b id="dcUnique">–</b><span>unikátnych čísel</span></div>
+          <div class="chip c-warn"><b id="dcDupNums">–</b><span>duplicitných čísel</span></div>
+          <div class="chip c-err"><b id="dcDupRows">–</b><span>nadbytočných skenov</span></div>
+        </div>
+        <div class="actions" id="dcActions" style="display:none">
+          <label><input type="checkbox" id="dcOnlyDup"> zobraziť len duplicity</label>
+          <div class="sep" style="width:1px;height:22px;background:var(--border)"></div>
+          <label for="dcOutName">Názov výstupu:</label>
+          <input type="text" id="dcOutName" value="cisla_bodov.txt" spellcheck="false">
+          <button class="btn primary" id="dcDownload">⬇ Stiahnuť</button>
+          <button class="btn" id="dcCopy">📋 Kopírovať</button>
+        </div>
+        <div class="empty-note" id="dcEmpty">Nahraj GCP súbor — čísla bodov sa vypíšu automaticky.</div>
+        <div class="table-wrap" id="dcTableWrap" style="display:none">
+          <table>
+            <thead><tr><th>Poradie skenu</th><th>Číslo bodu</th><th>Výskyt</th><th>Stav</th></tr></thead>
+            <tbody id="dcBody"></tbody>
+          </table>
         </div>
       </div>
     </section>
@@ -466,9 +503,9 @@
  *  <section class="tool" id="tool-NÁZOV"> + tlačidlo v bočnom menu.
  * ===================================================================== */
 const Tools = {
-  quickgcp:  { init: initQuickGCP },
-  template1: { init: null },   // sem príde ďalší transformátor
-  template2: { init: null },
+  quickgcp:   { init: initQuickGCP },
+  duplicheck: { init: initDupliCheck },
+  template2:  { init: null },   // sem príde ďalší transformátor
 };
 
 /* ---------- navigácia medzi nástrojmi ---------- */
@@ -1246,6 +1283,137 @@ function initQuickGCP(){
     resize();
     return { setData };
   })();
+}
+
+/* =====================================================================
+ *  DupliCheck — jadro
+ * ===================================================================== */
+// === DUPLI CORE ===
+
+/**
+ * Z poradia skenovaných bodov spočíta výskyty každého čísla bodu.
+ * Vráti { rows, stats } — riadky ostávajú v poradí skenovania,
+ * pri každom je poradové číslo výskytu (k/total) a príznak duplicity.
+ */
+function analyzeGcpDuplicates(records){
+  const counts = new Map();
+  for (const r of records) counts.set(r.name, (counts.get(r.name) || 0) + 1);
+
+  const seen = new Map();
+  const rows = records.map((r, idx) => {
+    const total = counts.get(r.name);
+    const k = (seen.get(r.name) || 0) + 1;
+    seen.set(r.name, k);
+    return { order: idx + 1, name: r.name, occurrence: k, total, duplicate: total > 1 };
+  });
+
+  const dupRows = rows.filter(r => r.duplicate).length;
+  return {
+    rows,
+    stats: {
+      total: records.length,
+      unique: counts.size,
+      dupNumbers: [...counts.values()].filter(c => c > 1).length,
+      dupRows,
+      extraScans: dupRows - [...counts.values()].filter(c => c > 1).length,
+    },
+  };
+}
+// === END DUPLI CORE ===
+
+/* =====================================================================
+ *  DupliCheck — UI
+ * ===================================================================== */
+function initDupliCheck(){
+  const $ = id => document.getElementById(id);
+  const state = { result: null };
+  const errBox = $('dcErr');
+
+  const esc = s => String(s).replace(/[&<>"']/g, c =>
+    ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+  /* ---------- nahrávanie ---------- */
+  const zone = $('dcDz'), input = $('dcFile');
+  zone.addEventListener('click', () => input.click());
+  input.addEventListener('change', () => input.files[0] && load(input.files[0]));
+  zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('drag'); });
+  zone.addEventListener('dragleave', () => zone.classList.remove('drag'));
+  zone.addEventListener('drop', e => {
+    e.preventDefault(); zone.classList.remove('drag');
+    if (e.dataTransfer.files[0]) load(e.dataTransfer.files[0]);
+  });
+
+  async function load(file){
+    try{
+      const records = parseGcpDat(await file.arrayBuffer());
+      state.result = analyzeGcpDuplicates(records);
+      zone.classList.add('loaded');
+      $('dcDzFile').textContent = `✔ ${file.name} (${(file.size / 1024).toFixed(1)} kB)`;
+      $('dcOutName').value = file.name.replace(/\.[^.]*$/, '') + '_cisla.txt';
+      errBox.classList.remove('show');
+      render();
+    }catch(err){
+      errBox.textContent = `⚠ GCP súbor „${file.name}“: ${err.message}`;
+      errBox.classList.add('show');
+    }
+  }
+
+  /* ---------- výpis ---------- */
+  function render(){
+    const { rows, stats } = state.result;
+    $('dcTotal').textContent   = stats.total;
+    $('dcUnique').textContent  = stats.unique;
+    $('dcDupNums').textContent = stats.dupNumbers;
+    $('dcDupRows').textContent = stats.dupRows;
+    $('dcChips').style.display   = 'flex';
+    $('dcActions').style.display = 'flex';
+    $('dcEmpty').style.display   = 'none';
+    $('dcTableWrap').style.display = 'block';
+    renderRows();
+  }
+
+  function renderRows(){
+    const onlyDup = $('dcOnlyDup').checked;
+    const rows = state.result.rows.filter(r => !onlyDup || r.duplicate);
+    if (!rows.length){
+      $('dcBody').innerHTML = '<tr><td colspan="4" style="text-align:center;color:var(--text-warm)">'
+        + 'Žiadne duplicity — všetky čísla bodov sú unikátne. 🎉</td></tr>';
+      return;
+    }
+    $('dcBody').innerHTML = rows.map(r => `
+      <tr class="${r.duplicate ? 'dup-row' : ''}">
+        <td class="num">${r.order}</td>
+        <td>${esc(r.name)}</td>
+        <td class="num">${r.duplicate ? `${r.occurrence}. z ${r.total}` : '—'}</td>
+        <td>${r.duplicate
+          ? '<span class="badge dup">duplicitný</span>'
+          : '<span class="badge ok">unikátny</span>'}</td>
+      </tr>`).join('');
+  }
+
+  $('dcOnlyDup').addEventListener('change', renderRows);
+
+  /* ---------- výstup: čísla bodov v poradí skenovania ---------- */
+  function outputText(){
+    return state.result.rows.map(r => r.name).join('\r\n') + '\r\n';
+  }
+
+  $('dcDownload').addEventListener('click', () => {
+    if (!state.result) return toast('Najprv nahraj GCP súbor.');
+    const blob = new Blob([outputText()], { type: 'text/plain' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = $('dcOutName').value.trim() || 'cisla_bodov.txt';
+    a.click();
+    URL.revokeObjectURL(a.href);
+    toast('Súbor stiahnutý ✔');
+  });
+
+  $('dcCopy').addEventListener('click', async () => {
+    if (!state.result) return toast('Najprv nahraj GCP súbor.');
+    await navigator.clipboard.writeText(outputText());
+    toast('Skopírované do schránky ✔');
+  });
 }
 
 /* spustenie nástrojov */
