@@ -1,0 +1,1448 @@
+<!DOCTYPE html>
+<html lang="sk">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TextKit — textové transformátory</title>
+<!-- moderné fonty; bez internetu sa použijú systémové -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+  :root{
+    /* paleta — primárna oranžová + teplé neutrály a bridlicová sekundárna */
+    --color-orange:#F99202;
+
+    --bg:#faf7f1;
+    --surface:#ffffff;
+    --surface-2:#f5f1e8;
+    --border:#e8e1d3;
+    --text:#23201b;
+    --text-soft:#6e675d;
+    --text-warm:#8c8170;
+    --primary:var(--color-orange);
+    --primary-ink:#b26a00;          /* oranžová pre texty a ikony (čitateľný kontrast) */
+    --primary-soft:#fdefd8;
+    --on-primary:#271400;
+    --secondary:#4e5d65;
+    --secondary-soft:#e9eef1;
+    --ok:#2e7d32;
+    --warn:#ef6c00;
+    --err:#c62828;
+    --appbar:var(--color-orange);
+    --on-appbar:#271400;
+    --elev-1:0 1px 2px rgba(60,45,20,.14),0 1px 4px rgba(60,45,20,.10);
+    --elev-2:0 2px 4px rgba(60,45,20,.16),0 3px 8px rgba(60,45,20,.10);
+    --elev-4:0 4px 10px rgba(60,45,20,.20),0 6px 20px rgba(60,45,20,.12);
+    --radius:8px;
+  }
+  [data-theme="dark"]{
+    --bg:#161310;
+    --surface:#211e19;
+    --surface-2:#2c2820;
+    --border:#413b30;
+    --text:#ede6da;
+    --text-soft:#a89e8f;
+    --text-warm:#b5a88f;
+    --primary:#ffab40;
+    --primary-ink:#ffbe6b;
+    --primary-soft:#3e2c10;
+    --on-primary:#2a1700;
+    --secondary:#9fb1ba;
+    --secondary-soft:#2d3940;
+    --ok:#81c995;
+    --warn:#fdd663;
+    --err:#f28b82;
+    --appbar:#211e19;
+    --on-appbar:#ede6da;
+    --elev-1:0 1px 3px rgba(0,0,0,.5);
+    --elev-2:0 2px 6px rgba(0,0,0,.5);
+    --elev-4:0 4px 14px rgba(0,0,0,.6);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{
+    font-family:"Inter",Roboto,"Segoe UI",system-ui,-apple-system,"Helvetica Neue",sans-serif;
+    background:var(--bg);
+    color:var(--text);
+    font-size:15px;
+    font-feature-settings:"cv05","cv11";   /* krajšie l a kurzívové a v Interi */
+  }
+
+  /* ---------- app bar ---------- */
+  .appbar{
+    position:sticky;top:0;z-index:30;height:60px;
+    display:flex;align-items:center;gap:14px;padding:0 22px;
+    background:var(--appbar);color:var(--on-appbar);box-shadow:var(--elev-2);
+  }
+  .appbar .logo{
+    width:36px;height:36px;border-radius:50%;display:grid;place-items:center;font-size:18px;
+    background:#fff;box-shadow:var(--elev-1);
+  }
+  [data-theme="dark"] .appbar .logo{background:var(--color-orange)}
+  .appbar-title{font-size:19px;font-weight:600;letter-spacing:-.01em}
+  .appbar-title small{font-size:12.5px;font-weight:400;opacity:.78;margin-left:10px;letter-spacing:.6px}
+  .appbar .spacer{flex:1}
+  .theme-btn{
+    border:none;background:rgba(0,0,0,.10);color:var(--on-appbar);width:40px;height:40px;
+    border-radius:50%;font-size:17px;cursor:pointer;transition:background .15s;
+  }
+  .theme-btn:hover{background:rgba(0,0,0,.20)}
+  [data-theme="dark"] .theme-btn{background:rgba(255,255,255,.10)}
+  [data-theme="dark"] .theme-btn:hover{background:rgba(255,255,255,.22)}
+
+  .app{display:flex;min-height:calc(100vh - 60px)}
+
+  /* ---------- navigačný panel ---------- */
+  .sidebar{
+    width:235px;flex-shrink:0;display:flex;flex-direction:column;gap:4px;
+    padding:18px 12px;background:var(--surface);box-shadow:var(--elev-1);
+    position:sticky;top:60px;height:calc(100vh - 60px);z-index:10;
+  }
+  .nav-label{
+    font-size:11px;font-weight:500;text-transform:uppercase;letter-spacing:1.4px;
+    color:var(--text-warm);padding:6px 14px 8px;
+  }
+  .nav-btn{
+    display:flex;align-items:center;gap:12px;width:100%;padding:11px 14px;border:none;border-radius:24px;
+    background:transparent;color:var(--text);font:inherit;font-weight:500;cursor:pointer;text-align:left;
+    transition:background .15s;
+  }
+  .nav-btn:hover{background:var(--surface-2)}
+  .nav-btn.active{background:var(--primary-soft);color:var(--primary-ink)}
+  .nav-btn .ico{width:20px;text-align:center}
+  .nav-btn .tag{
+    margin-left:auto;font-size:10px;font-weight:500;padding:2px 8px;border-radius:99px;
+    background:var(--secondary-soft);color:var(--secondary);
+  }
+  .sidebar .spacer{flex:1}
+
+  /* ---------- hlavný obsah ---------- */
+  main{flex:1;padding:26px clamp(16px,3vw,44px);max-width:1500px}
+  .tool{display:none}
+  .tool.active{display:block;animation:fadeIn .25s ease}
+  @keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+  .tool-head{margin-bottom:22px}
+  .tool-head h1{font-size:25px;font-weight:600;letter-spacing:-.02em;display:flex;align-items:center;gap:12px}
+  .tool-head .sub{color:var(--text-warm);margin-top:6px;max-width:760px;line-height:1.55}
+  .pill{
+    font-size:11px;font-weight:600;padding:3px 11px;border-radius:99px;letter-spacing:.4px;
+    background:var(--secondary);color:#fff;vertical-align:middle;
+  }
+  [data-theme="dark"] .pill{color:#161310}
+
+  .card{
+    background:var(--surface);border-radius:var(--radius);
+    box-shadow:var(--elev-1);padding:22px;margin-bottom:22px;
+    transition:box-shadow .2s;
+  }
+  .card:hover{box-shadow:var(--elev-2)}
+  .card h2{
+    font-size:14px;font-weight:500;letter-spacing:.8px;text-transform:uppercase;
+    display:flex;align-items:center;gap:10px;margin-bottom:16px;color:var(--text-soft);
+  }
+  .step-num{
+    width:26px;height:26px;border-radius:50%;display:inline-grid;place-items:center;
+    font-size:13px;font-weight:600;color:var(--on-primary);background:var(--primary);flex-shrink:0;
+  }
+
+  /* ---------- dropzóny ---------- */
+  .drop-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  @media(max-width:860px){.drop-grid{grid-template-columns:1fr}}
+  .dropzone{
+    border:2px dashed var(--border);border-radius:var(--radius);padding:24px 16px;text-align:center;cursor:pointer;
+    background:var(--surface-2);transition:border-color .15s,background .15s;
+  }
+  .dropzone:hover,.dropzone.drag{border-color:var(--primary);background:var(--primary-soft)}
+  .dropzone .dz-ico{font-size:27px}
+  .dropzone .dz-title{font-weight:500;margin-top:6px}
+  .dropzone .dz-hint{font-size:12.5px;color:var(--text-warm);margin-top:3px}
+  .dropzone .dz-file{
+    display:none;margin-top:10px;font-size:13px;font-weight:500;color:var(--primary-ink);
+    background:var(--surface);border-radius:99px;padding:6px 14px;box-shadow:var(--elev-1);
+    word-break:break-all;
+  }
+  .dropzone.loaded{border-style:solid;border-color:var(--primary)}
+  .dropzone.loaded .dz-file{display:inline-block}
+
+  /* ---------- štatistiky + akcie ---------- */
+  .chips{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:16px}
+  .chip{
+    display:flex;flex-direction:column;gap:2px;min-width:112px;
+    background:var(--surface-2);border-radius:var(--radius);padding:10px 14px;
+    border-left:3px solid var(--primary);
+  }
+  .chip b{font-size:19px;color:var(--primary-ink)}
+  .chip span{font-size:11.5px;color:var(--text-warm)}
+  .chip.c-ok{border-left-color:var(--ok)} .chip.c-ok b{color:var(--ok)}
+  .chip.c-warn{border-left-color:var(--warn)} .chip.c-warn b{color:var(--warn)}
+  .chip.c-err{border-left-color:var(--err)} .chip.c-err b{color:var(--err)}
+  .actions{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-bottom:16px}
+  .actions label{font-size:13px;color:var(--text-warm)}
+  input[type=text]{
+    font:inherit;padding:9px 12px;border:1px solid var(--border);border-radius:4px;
+    background:var(--surface);color:var(--text);min-width:190px;
+  }
+  input[type=text]:focus{outline:2px solid var(--primary);outline-offset:-1px;border-color:var(--primary)}
+  select{
+    font:inherit;font-size:13.5px;padding:7px 10px;border:1px solid var(--border);border-radius:4px;
+    background:var(--surface);color:var(--text);cursor:pointer;
+  }
+  select:focus{outline:2px solid var(--primary);outline-offset:-1px}
+
+  /* ---------- tlačidlá (Material) ---------- */
+  .btn{
+    position:relative;overflow:hidden;
+    font:inherit;font-size:13.5px;font-weight:500;text-transform:uppercase;letter-spacing:.7px;
+    padding:10px 18px;border-radius:4px;border:none;
+    background:transparent;color:var(--primary-ink);cursor:pointer;display:inline-flex;align-items:center;gap:8px;
+    transition:background .15s,box-shadow .15s;
+  }
+  .btn:hover{background:var(--primary-soft)}
+  .btn.primary{background:var(--primary);color:var(--on-primary);box-shadow:var(--elev-1)}
+  .btn.primary:hover{box-shadow:var(--elev-2);filter:brightness(1.05)}
+  .btn:disabled{opacity:.4;cursor:not-allowed}
+  .btn.small{padding:7px 12px;font-size:12.5px}
+  .nav-btn,.tab{position:relative;overflow:hidden}
+  .ripple{
+    position:absolute;border-radius:50%;background:currentColor;opacity:.16;
+    transform:scale(0);animation:ripple .55s ease-out;pointer-events:none;
+  }
+  @keyframes ripple{to{transform:scale(1);opacity:0}}
+
+  /* ---------- záložky / tabuľka / náhľad ---------- */
+  .tabs{display:flex;gap:4px;border-bottom:1px solid var(--border);margin-bottom:14px}
+  .tab{
+    font:inherit;font-size:13px;font-weight:500;text-transform:uppercase;letter-spacing:.8px;
+    padding:10px 18px;border:none;background:none;color:var(--text-soft);
+    cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;
+  }
+  .tab:hover{background:var(--surface-2)}
+  .tab.active{color:var(--primary-ink);border-bottom-color:var(--primary)}
+  .table-wrap{max-height:380px;overflow:auto;border:1px solid var(--border);border-radius:var(--radius)}
+  table{width:100%;border-collapse:collapse;font-size:13.5px}
+  th,td{padding:9px 13px;text-align:left;border-bottom:1px solid var(--border);white-space:nowrap}
+  th{
+    position:sticky;top:0;background:var(--surface-2);font-size:11.5px;font-weight:500;
+    text-transform:uppercase;letter-spacing:.8px;color:var(--text-warm);z-index:1;
+  }
+  tr:last-child td{border-bottom:none}
+  tr:hover td{background:var(--primary-soft)}
+  td.num{font-variant-numeric:tabular-nums}
+  .badge{font-size:11.5px;font-weight:600;padding:2px 10px;border-radius:99px}
+  .badge.ok{background:#e3f2e5;color:#2e7d32}
+  .badge.dup{background:var(--secondary-soft);color:var(--secondary)}
+  .badge.err{background:#fde3e1;color:#c62828}
+  [data-theme="dark"] .badge.ok{background:#1e3b22;color:#81c995}
+  [data-theme="dark"] .badge.err{background:#4a1d1a;color:#f28b82}
+  /* zvýraznenie duplicitných riadkov v DupliCheck */
+  tr.dup-row td{background:var(--primary-soft)}
+  tr.dup-row:hover td{background:var(--primary-soft);filter:brightness(.97)}
+  tr.dup-row td:nth-child(2){font-weight:700;color:var(--primary-ink)}
+  tr.dup-row td:first-child{box-shadow:inset 3px 0 0 var(--primary)}
+  textarea.preview{
+    width:100%;min-height:300px;resize:vertical;font:13px/1.55 "JetBrains Mono","Roboto Mono",ui-monospace,Consolas,monospace;
+    background:var(--surface-2);color:var(--text);border:1px solid var(--border);border-radius:var(--radius);padding:12px;
+  }
+  .edit-name{
+    font:inherit;font-weight:700;border:1px solid transparent;border-radius:3px;
+    background:transparent;color:inherit;padding:2px 6px;width:100%;min-width:70px;
+    transition:border-color .15s,background .15s;
+  }
+  .edit-name:hover{border-color:var(--border);background:var(--surface-2)}
+  .edit-name:focus{outline:none;border-color:var(--primary);background:var(--surface)}
+  .empty-note{color:var(--text-warm);font-size:14px;padding:18px;text-align:center}
+  .alert{
+    border-radius:var(--radius);padding:12px 14px;font-size:13.5px;margin-bottom:14px;display:none;
+    background:#fde3e1;color:#c62828;border-left:4px solid #c62828;white-space:pre-wrap;
+  }
+  [data-theme="dark"] .alert{background:#4a1d1a;color:#f28b82;border-left-color:#f28b82}
+  .alert.warn{background:var(--primary-soft);color:#9a5b00;border-left-color:var(--color-orange)}
+  [data-theme="dark"] .alert.warn{color:#fdd663}
+  .alert.show{display:block}
+
+  /* ---------- mapa ---------- */
+  .map-toolbar{display:flex;flex-wrap:wrap;align-items:center;gap:14px;margin-bottom:12px;font-size:13.5px}
+  .map-toolbar .sep{width:1px;height:24px;background:var(--border)}
+  .map-toolbar label{display:flex;align-items:center;gap:7px;cursor:pointer;color:var(--text-soft);user-select:none}
+  .map-toolbar input[type=checkbox]{accent-color:var(--primary);width:16px;height:16px}
+  .map-box{position:relative;border-radius:var(--radius);overflow:hidden;background:var(--surface-2);box-shadow:var(--elev-1)}
+  #map{display:block;width:100%;height:560px;cursor:grab;touch-action:none}
+  #map.panning{cursor:grabbing}
+  .map-tip{
+    position:absolute;pointer-events:none;display:none;z-index:5;
+    background:var(--surface);border-radius:6px;box-shadow:var(--elev-4);
+    padding:9px 12px;font-size:12.5px;line-height:1.5;white-space:nowrap;
+  }
+  .map-tip b{color:var(--primary-ink)}
+  .legend{display:flex;flex-wrap:wrap;gap:16px;margin-top:12px;font-size:12.5px;color:var(--text-warm)}
+  .legend span{display:flex;align-items:center;gap:6px}
+  .dot{width:11px;height:11px;border-radius:50%;display:inline-block}
+
+  /* ---------- šablóny ---------- */
+  .tpl-box{
+    border:2px dashed var(--border);border-radius:var(--radius);padding:36px;text-align:center;
+    color:var(--text-soft);line-height:1.7;
+  }
+  .tpl-box .big{font-size:34px}
+  code{
+    background:var(--surface-2);border-radius:4px;padding:1px 6px;
+    font-size:13px;font-family:"JetBrains Mono","Roboto Mono",ui-monospace,Consolas,monospace;color:var(--primary-ink);
+  }
+
+  /* ---------- snackbar ---------- */
+  .toast{
+    position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(90px);z-index:50;
+    background:#323232;color:#fff;padding:13px 22px;border-radius:4px;font-size:14px;
+    transition:transform .25s ease;box-shadow:var(--elev-4);
+  }
+  [data-theme="dark"] .toast{background:#ede6da;color:#23201b}
+  .toast.show{transform:translateX(-50%) translateY(0)}
+
+  @media(max-width:720px){
+    .app{flex-direction:column}
+    .sidebar{width:100%;height:auto;position:static;flex-direction:row;align-items:center;flex-wrap:wrap;box-shadow:var(--elev-1)}
+    .sidebar .nav-label,.sidebar .spacer{display:none}
+    .nav-btn{width:auto}
+    .appbar-title small{display:none}
+  }
+</style>
+</head>
+<body>
+<header class="appbar">
+  <span class="logo">⚡</span>
+  <span class="appbar-title">TextKit <small>textové transformátory</small></span>
+  <span class="spacer"></span>
+  <button class="theme-btn" id="themeToggle" title="Prepnúť svetlý / tmavý režim">🌙</button>
+</header>
+<div class="app">
+
+  <!-- ============ NAVIGÁCIA ============ -->
+  <aside class="sidebar">
+    <div class="nav-label">Transformátory</div>
+    <button class="nav-btn active" data-tool="quickgcp"><span class="ico">📍</span> QuickGCP</button>
+    <button class="nav-btn" data-tool="duplicheck"><span class="ico">🔍</span> DupliCheck</button>
+    <button class="nav-btn" data-tool="template2"><span class="ico">🧩</span> Template2 <span class="tag">čoskoro</span></button>
+    <div class="spacer"></div>
+  </aside>
+
+  <!-- ============ MAIN ============ -->
+  <main>
+
+    <!-- ================= QuickGCP ================= -->
+    <section class="tool active" id="tool-quickgcp">
+      <div class="tool-head">
+        <h1>📍 QuickGCP <span class="pill">v1.0</span></h1>
+        <p class="sub">Extrahuje čísla bodov z binárneho GCP súboru (<code>.dat</code>), priradí im súradnice
+        zo zoznamu bodov a vytvorí výstupný textový súbor v poradí, v akom boli body merané.
+        Názvy súborov sú ľubovoľné — dôležitý je len obsah.</p>
+      </div>
+
+      <!-- step 1: inputs -->
+      <div class="card">
+        <h2><span class="step-num">1</span> Vstupné súbory</h2>
+        <div class="drop-grid">
+          <div class="dropzone" id="dzDat">
+            <div class="dz-ico">🗂️</div>
+            <div class="dz-title">GCP súbor (.dat)</div>
+            <div class="dz-hint">binárny súbor s číslami meraných bodov — pretiahni sem alebo klikni</div>
+            <div class="dz-file" id="dzDatFile"></div>
+            <input type="file" id="fileDat" hidden>
+          </div>
+          <div class="dropzone" id="dzCoords">
+            <div class="dz-ico">📄</div>
+            <div class="dz-title">Zoznam súradníc (.txt)</div>
+            <div class="dz-hint">riadky v tvare <code>bod Y X H</code> (oddelené čiarkou, medzerou, tabulátorom, ; alebo |) — pretiahni sem alebo klikni</div>
+            <div class="dz-file" id="dzCoordsFile"></div>
+            <input type="file" id="fileCoords" hidden>
+          </div>
+        </div>
+        <div class="alert" id="errBox"></div>
+      </div>
+
+      <!-- step 2: result -->
+      <div class="card">
+        <h2><span class="step-num">2</span> Výsledok</h2>
+        <div class="alert warn" id="warnBox"></div>
+        <div class="chips" id="statChips" style="display:none">
+          <div class="chip"><b id="stMeasured">–</b><span>meraní v GCP</span></div>
+          <div class="chip"><b id="stUnique">–</b><span>unikátnych bodov</span></div>
+          <div class="chip c-ok"><b id="stMatched">–</b><span>priradených</span></div>
+          <div class="chip c-err"><b id="stMissing">–</b><span>nenájdených</span></div>
+          <div class="chip"><b id="stCoords">–</b><span>bodov v zozname</span></div>
+        </div>
+        <div class="actions" id="resultActions" style="display:none">
+          <label for="outName">Názov výstupu:</label>
+          <input type="text" id="outName" value="vystup.txt" spellcheck="false">
+          <button class="btn primary" id="btnDownload">⬇ Stiahnuť</button>
+          <button class="btn" id="btnCopy">📋 Kopírovať</button>
+        </div>
+        <div class="tabs" id="resultTabs" style="display:none">
+          <button class="tab active" data-pane="paneTable">Tabuľka</button>
+          <button class="tab" data-pane="panePreview">Náhľad súboru</button>
+        </div>
+        <div id="paneTable">
+          <div class="empty-note" id="emptyNote">Nahraj oba súbory — výsledok sa vygeneruje automaticky.</div>
+          <div class="table-wrap" id="tableWrap" style="display:none">
+            <table>
+              <thead><tr><th>#</th><th>Bod (GCP)</th><th>Priradený bod</th><th>Y</th><th>X</th><th>H</th><th>Stav</th><th>Poznámka</th></tr></thead>
+              <tbody id="resultBody"></tbody>
+            </table>
+          </div>
+        </div>
+        <div id="panePreview" style="display:none">
+          <textarea class="preview" id="outputPreview" readonly spellcheck="false"></textarea>
+        </div>
+      </div>
+
+      <!-- step 3: map -->
+      <div class="card">
+        <h2><span class="step-num">3</span> Mapa bodov a trasa merania</h2>
+        <div class="map-toolbar">
+          <button class="btn small" id="btnFit">🔍 Prispôsobiť</button>
+          <button class="btn small" id="btnPlay">▶ Prehrať trasu</button>
+          <button class="btn small" id="btnPng">🖼️ Uložiť PNG</button>
+          <div class="sep"></div>
+          <label>podklad
+            <select id="selBase">
+              <option value="none">žiadny</option>
+              <option value="osm">OSM mapa</option>
+              <option value="sat">letecká snímka</option>
+            </select>
+          </label>
+          <div class="sep"></div>
+          <label><input type="checkbox" id="cbAll" checked> všetky body</label>
+          <label><input type="checkbox" id="cbLabels" checked> popisky</label>
+          <label><input type="checkbox" id="cbPath" checked> trasa</label>
+          <label><input type="checkbox" id="cbOrder"> poradové čísla</label>
+        </div>
+        <div class="map-box">
+          <canvas id="map"></canvas>
+          <div class="map-tip" id="mapTip"></div>
+        </div>
+        <div class="legend">
+          <span><span class="dot" style="background:#9e9e9e"></span> bod zo zoznamu</span>
+          <span><span class="dot" style="background:#F99202"></span> meraný bod</span>
+          <span><span class="dot" style="background:#2e7d32"></span> štart trasy</span>
+          <span><span class="dot" style="background:#c62828"></span> koniec trasy</span>
+          <span>🖱️ koliesko = zoom, ťahanie = posun</span>
+          <span>🌐 podkladová mapa vyžaduje internet a súradnice v S-JTSK</span>
+          <span id="geoEngine"></span>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= DupliCheck ================= -->
+    <section class="tool" id="tool-duplicheck">
+      <div class="tool-head">
+        <h1>🔍 DupliCheck <span class="pill">v1.0</span></h1>
+        <p class="sub">Extrahuje čísla bodov z binárneho GCP súboru (<code>.dat</code>) a vypíše ich
+        v poradí, v akom boli skenované. Duplicitné čísla bodov zvýrazní, takže hneď vidno,
+        ktoré body sa naskenovali viackrát.</p>
+      </div>
+
+      <!-- step 1: input -->
+      <div class="card">
+        <h2><span class="step-num">1</span> Vstupný súbor</h2>
+        <div class="dropzone" id="dcDz">
+          <div class="dz-ico">🗂️</div>
+          <div class="dz-title">GCP súbor (.dat)</div>
+          <div class="dz-hint">binárny súbor s číslami skenovaných bodov — pretiahni sem alebo klikni</div>
+          <div class="dz-file" id="dcDzFile"></div>
+          <input type="file" id="dcFile" hidden>
+        </div>
+        <div class="alert" id="dcErr"></div>
+      </div>
+
+      <!-- step 2: result -->
+      <div class="card">
+        <h2><span class="step-num">2</span> Výsledok</h2>
+        <div class="chips" id="dcChips" style="display:none">
+          <div class="chip"><b id="dcTotal">–</b><span>skenovaných bodov</span></div>
+          <div class="chip c-ok"><b id="dcUnique">–</b><span>unikátnych čísel</span></div>
+          <div class="chip c-warn"><b id="dcDupNums">–</b><span>duplicitných čísel</span></div>
+          <div class="chip c-err"><b id="dcDupRows">–</b><span>nadbytočných skenov</span></div>
+        </div>
+        <div class="actions" id="dcActions" style="display:none">
+          <label><input type="checkbox" id="dcOnlyDup"> zobraziť len duplicity</label>
+          <div class="sep" style="width:1px;height:22px;background:var(--border)"></div>
+          <label for="dcOutName">Názov výstupu:</label>
+          <input type="text" id="dcOutName" value="cisla_bodov.txt" spellcheck="false">
+          <button class="btn primary" id="dcDownload">⬇ Stiahnuť</button>
+          <button class="btn" id="dcCopy">📋 Kopírovať</button>
+        </div>
+        <div class="empty-note" id="dcEmpty">Nahraj GCP súbor — čísla bodov sa vypíšu automaticky.</div>
+        <div class="table-wrap" id="dcTableWrap" style="display:none">
+          <table>
+            <thead><tr><th>Poradie skenu</th><th>Číslo bodu</th><th>Výskyt</th><th>Stav</th></tr></thead>
+            <tbody id="dcBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= Template2 ================= -->
+    <section class="tool" id="tool-template2">
+      <div class="tool-head">
+        <h1>🧩 Template2 <span class="pill">pripravené</span></h1>
+        <p class="sub">Miesto pre ďalší textový transformátor.</p>
+      </div>
+      <div class="card">
+        <div class="tpl-box">
+          <div class="big">🚧</div>
+          <p><b>Tu pribudne ďalší transformátor.</b></p>
+          <p>Postup je rovnaký ako pri Template1 — sekcia, tlačidlo v menu a registrácia v objekte <code>Tools</code>.</p>
+        </div>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+'use strict';
+
+/* =====================================================================
+ *  TextKit — registrácia transformátorov
+ *  Nový transformátor: pridaj záznam { init() { ... } } a HTML sekciu
+ *  <section class="tool" id="tool-NÁZOV"> + tlačidlo v bočnom menu.
+ * ===================================================================== */
+const Tools = {
+  quickgcp:   { init: initQuickGCP },
+  duplicheck: { init: initDupliCheck },
+  template2:  { init: null },   // sem príde ďalší transformátor
+};
+
+/* ---------- navigácia medzi nástrojmi ---------- */
+document.querySelectorAll('.nav-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tool').forEach(t => t.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('tool-' + btn.dataset.tool).classList.add('active');
+  });
+});
+
+/* ---------- téma ---------- */
+const themeBtn = document.getElementById('themeToggle');
+function applyTheme(t){
+  document.documentElement.dataset.theme = t;
+  themeBtn.textContent = t === 'dark' ? '☀️' : '🌙';
+  localStorage.setItem('textkit-theme', t);
+  window.dispatchEvent(new Event('textkit-theme'));   // prekreslenie mapy v nových farbách
+}
+applyTheme(localStorage.getItem('textkit-theme') || 'light');
+themeBtn.addEventListener('click', () =>
+  applyTheme(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark'));
+
+/* ---------- ripple efekt (Material) ---------- */
+document.addEventListener('pointerdown', e => {
+  const el = e.target.closest('.btn, .nav-btn, .tab');
+  if (!el) return;
+  const rect = el.getBoundingClientRect();
+  const d = Math.max(rect.width, rect.height) * 2;
+  const r = document.createElement('span');
+  r.className = 'ripple';
+  r.style.width = r.style.height = d + 'px';
+  r.style.left = (e.clientX - rect.left - d / 2) + 'px';
+  r.style.top  = (e.clientY - rect.top - d / 2) + 'px';
+  el.appendChild(r);
+  setTimeout(() => r.remove(), 600);
+});
+
+/* ---------- toast ---------- */
+let toastTimer;
+function toast(msg){
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), 2200);
+}
+
+/* =====================================================================
+ *  QuickGCP — jadro (čisté funkcie bez DOM)
+ * ===================================================================== */
+// === CORE ===
+
+/** Prečíta varint z bajtov, vráti [hodnota, nová pozícia]. */
+function readVarint(bytes, i){
+  let result = 0, shift = 0;
+  while (true){
+    if (i >= bytes.length) throw new Error('Neúplný varint — súbor je poškodený alebo má iný formát.');
+    const b = bytes[i++];
+    result += (b & 0x7f) * Math.pow(2, shift);
+    if ((b & 0x80) === 0) return [result, i];
+    shift += 7;
+  }
+}
+
+/**
+ * Rozparsuje binárny GCP .dat súbor (protobuf-štýl).
+ * Každý záznam: pole 1 = poradie (text), polia 2/3 = časové značky (varint),
+ * pole 4 = číslo/názov bodu (text).
+ * Vráti pole záznamov { seq, name, t1, t2 } v poradí merania.
+ */
+function parseGcpDat(buffer){
+  const bytes = buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer);
+  const records = [];
+  let i = 0;
+  while (i < bytes.length){
+    let tag; [tag, i] = readVarint(bytes, i);
+    const field = Math.floor(tag / 8), wire = tag & 7;
+    if (wire === 2){
+      let len; [len, i] = readVarint(bytes, i);
+      const msg = bytes.subarray(i, i + len); i += len;
+      if (field !== 1) continue;
+      const rec = { seq: null, name: null, t1: null, t2: null };
+      let j = 0;
+      while (j < msg.length){
+        let t; [t, j] = readVarint(msg, j);
+        const f = Math.floor(t / 8), w = t & 7;
+        if (w === 2){
+          let l; [l, j] = readVarint(msg, j);
+          const s = String.fromCharCode(...msg.subarray(j, j + l)); j += l;
+          if (f === 1) rec.seq = s;
+          else if (f === 4) rec.name = s;
+        } else if (w === 0){
+          let v; [v, j] = readVarint(msg, j);
+          if (f === 2) rec.t1 = v;
+          else if (f === 3) rec.t2 = v;
+        } else {
+          throw new Error('Neznámy wire-type v GCP súbore.');
+        }
+      }
+      if (rec.name !== null) records.push(rec);
+    } else if (wire === 0){
+      [, i] = readVarint(bytes, i);
+    } else {
+      throw new Error('Neočakávaná štruktúra GCP súboru.');
+    }
+  }
+  if (!records.length) throw new Error('V GCP súbore sa nenašli žiadne body.');
+  return records;
+}
+
+/** Normalizácia názvu bodu na porovnávanie: bez bodiek, bez medzier, malé písmená. */
+function normName(name){
+  return String(name).replace(/[.\s]/g, '').toLowerCase();
+}
+
+/**
+ * Rozparsuje zoznam súradníc — riadky "bod,Y,X,H" (oddelené čiarkou,
+ * bodkočiarkou, tabulátorom, medzerou alebo zvislou čiarou).
+ * Vráti pole { name, y, x, h, raw }.
+ */
+function parseCoordList(text){
+  const points = [];
+  for (const lineRaw of text.split(/\r?\n/)){
+    const line = lineRaw.trim();
+    if (!line) continue;
+    const parts = line.split(/[,;\t |]+/).map(p => p.trim()).filter(p => p !== '');
+    if (parts.length < 3) continue;
+    const y = parseFloat(parts[1]), x = parseFloat(parts[2]);
+    if (!isFinite(y) || !isFinite(x)) continue;
+    points.push({
+      name: parts[0],
+      y, x,
+      h: parts.length > 3 ? parseFloat(parts[3]) : null,
+      raw: line,
+    });
+  }
+  if (!points.length) throw new Error('V zozname súradníc sa nenašli žiadne platné body (očakávam riadky "bod,Y,X,H").');
+  return points;
+}
+
+/**
+ * Priradí meraným bodom súradnice. Najprv presná zhoda názvu, potom zhoda
+ * bez bodiek (v .dat súbore sú bodky z názvov odstránené, napr. F216 = F2.16).
+ * Vráti { rows, outputText, stats }.
+ */
+function matchPoints(records, coordPoints){
+  const exact = new Map(), normalized = new Map();
+  for (const p of coordPoints){
+    if (!exact.has(p.name)) exact.set(p.name, p);
+    const n = normName(p.name);
+    if (!normalized.has(n)) normalized.set(n, p);
+  }
+  const rows = [], outLines = [], seen = new Set(), missing = [];
+  for (const rec of records){
+    const point = exact.get(rec.name) ?? normalized.get(normName(rec.name)) ?? null;
+    const duplicate = point ? seen.has(point.name) : false;
+    if (point){
+      seen.add(point.name);
+      outLines.push(point.raw);
+    } else {
+      missing.push(rec.name);
+      outLines.push(`${rec.name},0.000,0.000,0.000`);
+    }
+    rows.push({ rec, point, duplicate });
+  }
+  return {
+    rows,
+    outputText: outLines.length ? outLines.join('\r\n') + '\r\n' : '',
+    stats: {
+      measured: records.length,
+      unique: seen.size,
+      matched: outLines.length,
+      missing,
+      coords: coordPoints.length,
+    },
+  };
+}
+// === END CORE ===
+
+/* =====================================================================
+ *  Geodézia — prevod S-JTSK (Křovák, záporné Y/X) → WGS-84 → Web Mercator.
+ *  Presnosť ~2 m, čo na podkladovú mapu bohato stačí.
+ * ===================================================================== */
+const MERC_R = 6378137;
+
+/** Je súradnica (záporné Y, X) v rozsahu Křovákovho zobrazenia? */
+function inKrovakRange(negY, negX){
+  const Y = -negY, X = -negX;
+  return Y > 100000 && Y < 1000000 && X > 900000 && X < 1300000;
+}
+
+/* proj4js sa načítava z CDN na pozadí — keď nie je internet, použije sa
+ * vstavaný prevod nižšie (rozdiel je len v centimetroch). */
+const JTSK_DEF = '+proj=krovak +lat_0=49.5 +lon_0=24.83333333333333'
+  + ' +alpha=30.28813972222222 +k=0.9999 +x_0=0 +y_0=0 +ellps=bessel'
+  + ' +towgs84=485.021,169.465,483.839,7.786342,4.397554,4.102655,0 +units=m +no_defs';
+
+(function loadProj4(){
+  const s = document.createElement('script');
+  s.src = 'https://cdn.jsdelivr.net/npm/proj4@2.15.0/dist/proj4.js';
+  s.async = true;
+  s.onload = () => window.dispatchEvent(new Event('proj4-ready'));
+  document.head.appendChild(s);
+})();
+
+/** Prevod bodu do WGS-84: proj4js ak je dostupný, inak vstavaný algoritmus. */
+function convertJtsk(negY, negX){
+  if (!inKrovakRange(negY, negX)) return null;
+  if (window.proj4){
+    try{
+      const [lon, lat] = proj4(JTSK_DEF, 'WGS84', [negY, negX]);
+      return { lat, lon, engine: 'proj4js' };
+    }catch(err){ /* padá späť na vstavaný prevod */ }
+  }
+  const r = jtskToWgs(negY, negX);
+  return r && { ...r, engine: 'vstavaný (offline)' };
+}
+
+/** S-JTSK (záporné Y, X) → { lat, lon } vo WGS-84, alebo null mimo rozsahu Křováka. */
+function jtskToWgs(negY, negX){
+  if (!inKrovakRange(negY, negX)) return null;
+  const Y = -negY, X = -negX;
+  const e = 0.081696831215303, n = 0.97992470462083;
+  const uRo = 12310230.12797036;
+  const sinUQ = 0.863499969506341, cosUQ = 0.504348889819882;
+  const sinVQ = 0.420215144586493, cosVQ = 0.907424504992097;
+  const alfa = 1.000597498371542, k = 1.003419163966575;
+
+  const ro = Math.sqrt(X * X + Y * Y);
+  const D = 2 * Math.atan(Y / (ro + X)) / n;
+  const S = 2 * Math.atan(Math.exp(1 / n * Math.log(uRo / ro))) - Math.PI / 2;
+  const sinS = Math.sin(S), cosS = Math.cos(S);
+  const sinU = sinUQ * sinS - cosUQ * cosS * Math.cos(D);
+  const cosU = Math.sqrt(1 - sinU * sinU);
+  const sinDV = Math.sin(D) * cosS / cosU;
+  const cosDV = Math.sqrt(1 - sinDV * sinDV);
+  const sinV = sinVQ * cosDV - cosVQ * sinDV;
+  const cosV = cosVQ * cosDV + sinVQ * sinDV;
+  const L = 2 * Math.atan(sinV / (1 + cosV)) / alfa;     // zem. dĺžka od Greenwicha (rad)
+  const t0 = Math.exp(2 / alfa * Math.log((1 + sinU) / cosU / k));
+  let pom = (t0 - 1) / (t0 + 1), sinB;
+  do {
+    sinB = pom;
+    pom = t0 * Math.exp(e * Math.log((1 + e * sinB) / (1 - e * sinB)));
+    pom = (pom - 1) / (pom + 1);
+  } while (Math.abs(pom - sinB) > 1e-15);
+  const B = Math.atan(pom / Math.sqrt(1 - pom * pom));   // zem. šírka na Besseli (rad)
+
+  /* Bessel → geocentrické súradnice */
+  let a = 6377397.15508, f1 = 299.152812853, H = 300;
+  let e2 = 1 - Math.pow(1 - 1 / f1, 2);
+  const rho = a / Math.sqrt(1 - e2 * Math.sin(B) ** 2);
+  const x1 = (rho + H) * Math.cos(B) * Math.cos(L);
+  const y1 = (rho + H) * Math.cos(B) * Math.sin(L);
+  const z1 = ((1 - e2) * rho + H) * Math.sin(B);
+
+  /* Helmertova transformácia S-JTSK → WGS-84 (slovenská 7-parametrová sada) */
+  const sec = Math.PI / 180 / 3600, m = 0;
+  const wx = 7.786342 * sec, wy = 4.397554 * sec, wz = 4.102655 * sec;
+  const x2 = 485.021 + (1 + m) * (x1 - wz * y1 + wy * z1);
+  const y2 = 169.465 + (1 + m) * (wz * x1 + y1 - wx * z1);
+  const z2 = 483.839 + (1 + m) * (-wy * x1 + wx * y1 + z1);
+
+  /* geocentrické → geodetické WGS-84 */
+  a = 6378137.0; f1 = 298.257223563;
+  const ab = f1 / (f1 - 1);
+  const p = Math.sqrt(x2 * x2 + y2 * y2);
+  e2 = 1 - Math.pow(1 - 1 / f1, 2);
+  const th = Math.atan(z2 * ab / p);
+  const t = (z2 + e2 * ab * a * Math.sin(th) ** 3) / (p - e2 * a * Math.cos(th) ** 3);
+  return {
+    lat: Math.atan(t) * 180 / Math.PI,
+    lon: 2 * Math.atan(y2 / (p + x2)) * 180 / Math.PI,
+  };
+}
+
+/** WGS-84 → Web Mercator (EPSG:3857) v metroch. */
+function wgsToMercator(lat, lon){
+  return {
+    e: MERC_R * lon * Math.PI / 180,
+    n: MERC_R * Math.log(Math.tan(Math.PI / 4 + lat * Math.PI / 360)),
+  };
+}
+
+/* =====================================================================
+ *  QuickGCP — UI
+ * ===================================================================== */
+function initQuickGCP(){
+  const state = { records: null, coords: null, result: null, datName: null };
+
+  const $ = id => document.getElementById(id);
+  const errBox = $('errBox'), warnBox = $('warnBox');
+
+  /* ---------- nahrávanie súborov ---------- */
+  function bindDropzone(zoneId, inputId, fileLabelId, onFile){
+    const zone = $(zoneId), input = $(inputId);
+    zone.addEventListener('click', e => { if (e.target !== input) input.click(); });
+    input.addEventListener('change', () => {
+      if (input.files[0]) onFile(input.files[0]);
+      input.value = '';
+    });
+    zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('drag'); });
+    zone.addEventListener('dragleave', () => zone.classList.remove('drag'));
+    zone.addEventListener('drop', e => {
+      e.preventDefault(); zone.classList.remove('drag');
+      if (e.dataTransfer.files[0]) onFile(e.dataTransfer.files[0]);
+    });
+    return file => {
+      zone.classList.add('loaded');
+      $(fileLabelId).textContent = `✔ ${file.name} (${(file.size/1024).toFixed(1)} kB)`;
+    };
+  }
+
+  const markDat = bindDropzone('dzDat', 'fileDat', 'dzDatFile', async file => {
+    try{
+      state.records = parseGcpDat(await file.arrayBuffer());
+      state.datName = file.name;
+      markDat(file);
+      hideError();
+      $('outName').value = file.name.replace(/\.[^.]*$/, '') + '_body.txt';
+      process();
+    }catch(err){ showError(`GCP súbor „${file.name}“: ${err.message}`); }
+  });
+
+  const markCoords = bindDropzone('dzCoords', 'fileCoords', 'dzCoordsFile', async file => {
+    try{
+      state.coords = parseCoordList(await file.text());
+      markCoords(file);
+      hideError();
+      process();
+    }catch(err){ showError(`Zoznam súradníc „${file.name}“: ${err.message}`); }
+  });
+
+  function showError(msg){ errBox.textContent = '⚠ ' + msg; errBox.classList.add('show'); }
+  function hideError(){ errBox.classList.remove('show'); }
+
+  /* ---------- spracovanie ---------- */
+  function process(){
+    if (!state.records || !state.coords) return;
+    state.result = matchPoints(state.records, state.coords);
+    renderResult();
+    map.setData(state.coords, state.result.rows);
+  }
+
+  function renderResult(){
+    const { rows, outputText, stats } = state.result;
+
+    $('stMeasured').textContent = stats.measured;
+    $('stUnique').textContent   = stats.unique;
+    $('stMatched').textContent  = stats.matched;
+    $('stMissing').textContent  = stats.missing.length;
+    $('stCoords').textContent   = stats.coords;
+    $('statChips').style.display = 'flex';
+    $('resultActions').style.display = 'flex';
+    $('resultTabs').style.display = 'flex';
+    $('emptyNote').style.display = 'none';
+    $('tableWrap').style.display = 'block';
+
+    if (stats.missing.length){
+      warnBox.textContent = '⚠ Body nenájdené v zozname súradníc (vo výstupe s nulovými súradnicami): '
+        + [...new Set(stats.missing)].join(', ');
+      warnBox.classList.add('show');
+    } else {
+      warnBox.classList.remove('show');
+    }
+
+    const fmt = v => v === null || v === undefined || Number.isNaN(v) ? '0.000' : v.toFixed(3);
+    $('resultBody').innerHTML = rows.map((r, idx) => {
+      const badge = !r.point ? '<span class="badge err">nenájdený</span>'
+        : r.duplicate ? '<span class="badge dup">opakovaný</span>'
+        : '<span class="badge ok">OK</span>';
+      const note = !r.point ? 'bod nenájdený' : '';
+      return `<tr>
+        <td class="num">${idx + 1}</td>
+        <td><input type="text" class="edit-name" data-idx="${idx}" value="${escapeHtml(r.rec.name)}" spellcheck="false"></td>
+        <td>${r.point ? escapeHtml(r.point.name) : '–'}</td>
+        <td class="num">${r.point ? fmt(r.point.y) : '0.000'}</td>
+        <td class="num">${r.point ? fmt(r.point.x) : '0.000'}</td>
+        <td class="num">${r.point ? fmt(r.point.h) : '0.000'}</td>
+        <td>${badge}</td>
+        <td>${note}</td>
+      </tr>`;
+    }).join('');
+
+    $('resultBody').querySelectorAll('.edit-name').forEach(input => {
+      input.addEventListener('change', e => {
+        const idx = parseInt(e.target.dataset.idx);
+        const newName = e.target.value.trim();
+        if (newName && newName !== state.records[idx].name){
+          state.records[idx].name = newName;
+          process();
+        }
+      });
+    });
+
+    $('outputPreview').value = outputText;
+  }
+
+  function escapeHtml(s){
+    return String(s).replace(/[&<>"']/g, c =>
+      ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+
+  /* ---------- tabs ---------- */
+  document.querySelectorAll('#resultTabs .tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      document.querySelectorAll('#resultTabs .tab').forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+      $('paneTable').style.display   = tab.dataset.pane === 'paneTable' ? 'block' : 'none';
+      $('panePreview').style.display = tab.dataset.pane === 'panePreview' ? 'block' : 'none';
+    });
+  });
+
+  /* ---------- download & copy ---------- */
+  $('btnDownload').addEventListener('click', () => {
+    if (!state.result || !state.result.outputText) return toast('Najprv nahraj oba súbory.');
+    const blob = new Blob([state.result.outputText], { type: 'text/plain' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = $('outName').value.trim() || 'vystup.txt';
+    a.click();
+    URL.revokeObjectURL(a.href);
+    toast('Súbor stiahnutý ✔');
+  });
+
+  $('btnCopy').addEventListener('click', async () => {
+    if (!state.result || !state.result.outputText) return toast('Najprv nahraj oba súbory.');
+    await navigator.clipboard.writeText(state.result.outputText);
+    toast('Skopírované do schránky ✔');
+  });
+
+  /* =====================================================================
+   *  Mapa — canvas s posunom, zoomom, trasou a animáciou
+   *  Súradnice S-JTSK: východ = -Y, sever = -X (sever hore).
+   * ===================================================================== */
+  const map = (() => {
+    const canvas = $('map'), tip = $('mapTip');
+    const ctx = canvas.getContext('2d');
+    let allPoints = [];          // { name, y, x, h, e, n, used, lat?, lon? }
+    let path = [];               // body trasy v poradí merania
+    let view = { scale: 1, tx: 0, ty: 0 };
+    let anim = { running: false, t: 0, raf: null };
+    let hover = null;
+    let geo = false;             // true = svet mapy je Web Mercator, podklad je možný
+
+    const cssVar = name => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+
+    /* ---------- podkladová mapa (dlaždice) ---------- */
+    const BASEMAPS = {
+      osm: {
+        url: (z, x, y) => `https://tile.openstreetmap.org/${z}/${x}/${y}.png`,
+        attribution: '© OpenStreetMap contributors',
+        maxZoom: 19,
+      },
+      sat: {
+        url: (z, x, y) => `https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/${z}/${y}/${x}`,
+        attribution: '© Esri, Maxar, Earthstar Geographics',
+        maxZoom: 19,
+      },
+    };
+    const selBase = $('selBase');
+    selBase.value = localStorage.getItem('textkit-basemap') || 'none';
+    selBase.addEventListener('change', () => {
+      if (selBase.value !== 'none' && allPoints.length && !geo){
+        toast('Súradnice nie sú v S-JTSK — podklad sa nedá umiestniť.');
+        selBase.value = 'none';
+      }
+      localStorage.setItem('textkit-basemap', selBase.value);
+      draw(null);
+    });
+
+    const tileCache = new Map();   // "z/x/y" -> {img, ok}
+    function getTile(base, z, x, y){
+      const key = selBase.value + '/' + z + '/' + x + '/' + y;
+      let t = tileCache.get(key);
+      if (t) return t;
+      if (tileCache.size > 400){           // jednoduchá ochrana pamäte
+        for (const k of [...tileCache.keys()].slice(0, 200)) tileCache.delete(k);
+      }
+      t = { img: new Image(), ok: false };
+      t.img.crossOrigin = 'anonymous';     // kvôli exportu PNG
+      t.img.onload = () => { t.ok = true; draw(null); };
+      t.img.src = base.url(z, x, y);
+      tileCache.set(key, t);
+      return t;
+    }
+
+    function drawBasemap(rect){
+      const base = BASEMAPS[selBase.value];
+      if (!base || !geo || !allPoints.length) return;
+      const worldHalf = Math.PI * MERC_R;
+      let z = Math.round(Math.log2(view.scale * 2 * worldHalf / 256));
+      z = Math.max(0, Math.min(base.maxZoom, z));
+      const tiles = Math.pow(2, z);
+      const T = 2 * worldHalf / tiles;     // veľkosť dlaždice v metroch
+      const e0 = (0 - view.tx) / view.scale,        e1 = (rect.width - view.tx) / view.scale;
+      const n0 = (view.ty - rect.height) / view.scale, n1 = view.ty / view.scale;
+      const x0 = Math.max(0, Math.floor((e0 + worldHalf) / T));
+      const x1 = Math.min(tiles - 1, Math.floor((e1 + worldHalf) / T));
+      const y0 = Math.max(0, Math.floor((worldHalf - n1) / T));
+      const y1 = Math.min(tiles - 1, Math.floor((worldHalf - n0) / T));
+      if ((x1 - x0 + 1) * (y1 - y0 + 1) > 64) return; // priveľa dlaždíc — počkaj na zoom
+      const px = T * view.scale;
+      for (let xi = x0; xi <= x1; xi++){
+        for (let yi = y0; yi <= y1; yi++){
+          const t = getTile(base, z, xi, yi);
+          if (!t.ok) continue;
+          const sx = (-worldHalf + xi * T) * view.scale + view.tx;
+          const sy = -(worldHalf - yi * T) * view.scale + view.ty;
+          ctx.drawImage(t.img, sx, sy, px + 0.6, px + 0.6);
+        }
+      }
+      /* povinné označenie zdroja mapy (ostane aj v PNG exporte) */
+      ctx.font = '10px sans-serif';
+      const w = ctx.measureText(base.attribution).width + 10;
+      ctx.fillStyle = 'rgba(255,255,255,.75)';
+      ctx.fillRect(rect.width - w, rect.height - 16, w, 16);
+      ctx.fillStyle = '#334155';
+      ctx.textAlign = 'left';
+      ctx.fillText(base.attribution, rect.width - w + 5, rect.height - 5);
+    }
+
+    function resize(){
+      const dpr = window.devicePixelRatio || 1;
+      const rect = canvas.getBoundingClientRect();
+      if (!rect.width) return;
+      canvas.width = rect.width * dpr;
+      canvas.height = rect.height * dpr;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      draw();
+    }
+    new ResizeObserver(resize).observe(canvas);
+
+    let lastData = null;   // pre prepočet, keď sa proj4js donačíta dodatočne
+
+    function setData(coords, rows){
+      lastData = { coords, rows };
+      const usedNames = new Set(rows.filter(r => r.point).map(r => r.point.name));
+      /* svet mapy: Web Mercator ak sú všetky body v rozsahu S-JTSK, inak lokálna rovina */
+      const wgs = coords.map(p => convertJtsk(p.y, p.x));
+      geo = wgs.every(w => w !== null);
+      $('geoEngine').textContent = geo && wgs.length ? `prevod do WGS-84: ${wgs[0].engine}` : '';
+      allPoints = coords.map((p, i) => {
+        const m = geo ? wgsToMercator(wgs[i].lat, wgs[i].lon) : { e: -p.y, n: -p.x };
+        return { ...p, e: m.e, n: m.n, used: usedNames.has(p.name),
+                 lat: geo ? wgs[i].lat : null, lon: geo ? wgs[i].lon : null };
+      });
+      const byName = new Map(allPoints.map(p => [p.name, p]));
+      path = rows.filter(r => r.point).map(r => {
+        const p = byName.get(r.point.name);
+        return { name: p.name, datName: r.rec.name, e: p.e, n: p.n, h: p.h };
+      });
+      if (selBase.value !== 'none' && !geo){
+        toast('Súradnice nie sú v S-JTSK — podklad je vypnutý.');
+        selBase.value = 'none';
+      }
+      stopAnim();
+      fit();
+    }
+
+    function visiblePoints(){
+      return $('cbAll').checked ? allPoints : allPoints.filter(p => p.used);
+    }
+
+    function fit(){
+      const pts = visiblePoints();
+      if (!pts.length) return draw();
+      const rect = canvas.getBoundingClientRect();
+      let minE = Infinity, maxE = -Infinity, minN = Infinity, maxN = -Infinity;
+      for (const p of pts){
+        minE = Math.min(minE, p.e); maxE = Math.max(maxE, p.e);
+        minN = Math.min(minN, p.n); maxN = Math.max(maxN, p.n);
+      }
+      const spanE = Math.max(maxE - minE, 1), spanN = Math.max(maxN - minN, 1);
+      view.scale = Math.min(rect.width / spanE, rect.height / spanN) * 0.85;
+      view.tx = rect.width / 2 - (minE + spanE / 2) * view.scale;
+      view.ty = rect.height / 2 + (minN + spanN / 2) * view.scale;
+      draw();
+    }
+
+    const toScreen = p => ({ x: p.e * view.scale + view.tx, y: -p.n * view.scale + view.ty });
+
+    function draw(progress = anim.running ? anim.t : (anim.t || null)){
+      const rect = canvas.getBoundingClientRect();
+      ctx.clearRect(0, 0, rect.width, rect.height);
+      if (!allPoints.length){
+        ctx.fillStyle = cssVar('--text-soft');
+        ctx.font = '15px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('Mapa sa zobrazí po nahratí oboch súborov.', rect.width / 2, rect.height / 2);
+        return;
+      }
+      drawBasemap(rect);
+      const showLabels = $('cbLabels').checked;
+      const showPath = $('cbPath').checked;
+      const showOrder = $('cbOrder').checked;
+
+      /* trasa */
+      if (showPath && path.length > 1){
+        const limit = progress === null ? path.length - 1 : progress * (path.length - 1);
+        const full = Math.floor(limit);
+        ctx.lineWidth = 2;
+        ctx.lineJoin = 'round';
+        for (let i = 0; i < path.length - 1 && i < limit; i++){
+          const a = toScreen(path[i]);
+          let b = toScreen(path[i + 1]);
+          if (i + 1 > limit){
+            const f = limit - i;
+            b = { x: a.x + (b.x - a.x) * f, y: a.y + (b.y - a.y) * f };
+          }
+          const hue = (210 + (i / Math.max(path.length - 2, 1)) * 186) % 360; // modrá → fialová → oranžová
+          ctx.strokeStyle = `hsl(${hue} 80% 52%)`;
+          ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+          if (i < full || progress === null) drawArrow(a, b, ctx.strokeStyle);
+        }
+      }
+
+      /* body */
+      ctx.font = '11px sans-serif';
+      ctx.textAlign = 'left';
+      for (const p of visiblePoints()){
+        const s = toScreen(p);
+        ctx.beginPath();
+        ctx.arc(s.x, s.y, p.used ? 5 : 3.5, 0, Math.PI * 2);
+        ctx.fillStyle = p.used ? cssVar('--primary') : '#9e9e9e';
+        ctx.fill();
+        if (p.used || selBase.value !== 'none'){ ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5; ctx.stroke(); }
+        if (showLabels){
+          /* halo vo farbe pozadia, aby bol text čitateľný aj na podklade */
+          ctx.strokeStyle = selBase.value === 'none' ? cssVar('--surface-2') : 'rgba(255,255,255,.85)';
+          ctx.lineWidth = 3;
+          ctx.strokeText(p.name, s.x + 7, s.y - 6);
+          ctx.fillStyle = selBase.value === 'none' ? cssVar('--text-soft') : '#1c1b1f';
+          ctx.fillText(p.name, s.x + 7, s.y - 6);
+        }
+      }
+
+      /* štart / koniec / poradové čísla */
+      if (path.length){
+        marker(toScreen(path[0]), '#2e7d32', 'Š');
+        if (progress === null || progress >= 1) marker(toScreen(path[path.length - 1]), '#c62828', 'K');
+        if (showOrder){
+          ctx.font = 'bold 10px sans-serif';
+          path.forEach((p, i) => {
+            const s = toScreen(p);
+            ctx.fillStyle = '#546E7A';
+            ctx.beginPath(); ctx.arc(s.x - 10, s.y + 10, 8, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = '#fff'; ctx.textAlign = 'center';
+            ctx.fillText(String(i + 1), s.x - 10, s.y + 13.5);
+          });
+          ctx.textAlign = 'left';
+        }
+      }
+
+      /* bežec animácie */
+      if (progress !== null && progress < 1 && path.length > 1){
+        const t = progress * (path.length - 1);
+        const i = Math.min(Math.floor(t), path.length - 2);
+        const f = t - i;
+        const a = toScreen(path[i]), b = toScreen(path[i + 1]);
+        const x = a.x + (b.x - a.x) * f, y = a.y + (b.y - a.y) * f;
+        ctx.beginPath(); ctx.arc(x, y, 8, 0, Math.PI * 2);
+        ctx.fillStyle = '#1E88E5'; ctx.fill();
+        ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.stroke();
+      }
+    }
+
+    function drawArrow(a, b, color){
+      const dx = b.x - a.x, dy = b.y - a.y;
+      const len = Math.hypot(dx, dy);
+      if (len < 28) return;
+      const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
+      const ux = dx / len, uy = dy / len;
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      ctx.moveTo(mx + ux * 6, my + uy * 6);
+      ctx.lineTo(mx - ux * 4 - uy * 4, my - uy * 4 + ux * 4);
+      ctx.lineTo(mx - ux * 4 + uy * 4, my - uy * 4 - ux * 4);
+      ctx.closePath(); ctx.fill();
+    }
+
+    function marker(s, color, letter){
+      ctx.beginPath(); ctx.arc(s.x, s.y, 9, 0, Math.PI * 2);
+      ctx.fillStyle = color; ctx.fill();
+      ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.stroke();
+      ctx.fillStyle = '#fff'; ctx.font = 'bold 11px sans-serif'; ctx.textAlign = 'center';
+      ctx.fillText(letter, s.x, s.y + 4);
+      ctx.textAlign = 'left'; ctx.font = '11px sans-serif';
+    }
+
+    /* ---------- interakcie ---------- */
+    let panning = false, last = null;
+    canvas.addEventListener('pointerdown', e => {
+      panning = true; last = { x: e.clientX, y: e.clientY };
+      canvas.classList.add('panning'); canvas.setPointerCapture(e.pointerId);
+    });
+    canvas.addEventListener('pointerup', e => {
+      panning = false; canvas.classList.remove('panning'); canvas.releasePointerCapture(e.pointerId);
+    });
+    canvas.addEventListener('pointermove', e => {
+      if (panning){
+        view.tx += e.clientX - last.x; view.ty += e.clientY - last.y;
+        last = { x: e.clientX, y: e.clientY };
+        draw();
+      } else {
+        updateHover(e);
+      }
+    });
+    canvas.addEventListener('pointerleave', () => { tip.style.display = 'none'; hover = null; });
+    canvas.addEventListener('wheel', e => {
+      e.preventDefault();
+      const rect = canvas.getBoundingClientRect();
+      const mx = e.clientX - rect.left, my = e.clientY - rect.top;
+      const k = e.deltaY < 0 ? 1.18 : 1 / 1.18;
+      view.tx = mx - (mx - view.tx) * k;
+      view.ty = my - (my - view.ty) * k;
+      view.scale *= k;
+      draw();
+    }, { passive: false });
+
+    function updateHover(e){
+      const rect = canvas.getBoundingClientRect();
+      const mx = e.clientX - rect.left, my = e.clientY - rect.top;
+      let best = null, bestD = 12;
+      for (const p of visiblePoints()){
+        const s = toScreen(p);
+        const d = Math.hypot(s.x - mx, s.y - my);
+        if (d < bestD){ bestD = d; best = p; }
+      }
+      if (best !== hover){
+        hover = best;
+        if (best){
+          const visits = path.reduce((acc, q, i) => (q.name === best.name && acc.push(i + 1), acc), []);
+          tip.innerHTML = `<b>${best.name}</b><br>Y: ${best.y.toFixed(3)}<br>X: ${best.x.toFixed(3)}`
+            + (best.h !== null && !Number.isNaN(best.h) ? `<br>H: ${best.h.toFixed(3)}` : '')
+            + (best.lat !== null ? `<br>${best.lat.toFixed(7)}° N, ${best.lon.toFixed(7)}° E` : '')
+            + (visits.length ? `<br>meraný ako č. ${visits.join(', ')}` : '<br><i>nemeraný</i>');
+          tip.style.display = 'block';
+        } else {
+          tip.style.display = 'none';
+        }
+      }
+      if (best){
+        tip.style.left = (mx + 16) + 'px';
+        tip.style.top  = (my + 16) + 'px';
+      }
+    }
+
+    /* ---------- animácia trasy ---------- */
+    function stopAnim(){
+      anim.running = false; anim.t = 0;
+      if (anim.raf) cancelAnimationFrame(anim.raf);
+      $('btnPlay').textContent = '▶ Prehrať trasu';
+    }
+    $('btnPlay').addEventListener('click', () => {
+      if (!path.length) return toast('Najprv nahraj oba súbory.');
+      if (anim.running) return stopAnim(), draw(null);
+      anim.running = true; anim.t = 0;
+      $('btnPlay').textContent = '⏹ Zastaviť';
+      const duration = Math.max(path.length * 350, 3000);
+      const start = performance.now();
+      const step = now => {
+        if (!anim.running) return;
+        anim.t = Math.min((now - start) / duration, 1);
+        draw(anim.t);
+        if (anim.t < 1){ anim.raf = requestAnimationFrame(step); }
+        else { stopAnim(); draw(null); }
+      };
+      anim.raf = requestAnimationFrame(step);
+    });
+
+    $('btnFit').addEventListener('click', fit);
+    $('btnPng').addEventListener('click', () => {
+      if (!allPoints.length) return toast('Najprv nahraj oba súbory.');
+      try{
+        const a = document.createElement('a');
+        a.href = canvas.toDataURL('image/png');
+        a.download = 'mapa_bodov.png';
+        a.click();
+        toast('Mapa uložená ✔');
+      }catch(err){
+        toast('Export zlyhal — skús vypnúť podkladovú mapu.');
+      }
+    });
+    ['cbAll', 'cbLabels', 'cbPath', 'cbOrder'].forEach(id =>
+      $(id).addEventListener('change', () => draw(null)));
+    window.addEventListener('textkit-theme', () => draw(null));
+    /* proj4js sa donačítal po nahratí dát → prepočítaj polohy presnejším prevodom */
+    window.addEventListener('proj4-ready', () => { if (lastData) setData(lastData.coords, lastData.rows); });
+
+    resize();
+    return { setData };
+  })();
+}
+
+/* =====================================================================
+ *  DupliCheck — jadro
+ * ===================================================================== */
+// === DUPLI CORE ===
+
+/**
+ * Z poradia skenovaných bodov spočíta výskyty každého čísla bodu.
+ * Vráti { rows, stats } — riadky ostávajú v poradí skenovania,
+ * pri každom je poradové číslo výskytu (k/total) a príznak duplicity.
+ */
+function analyzeGcpDuplicates(records){
+  const counts = new Map();
+  for (const r of records) counts.set(r.name, (counts.get(r.name) || 0) + 1);
+
+  const seen = new Map();
+  const rows = records.map((r, idx) => {
+    const total = counts.get(r.name);
+    const k = (seen.get(r.name) || 0) + 1;
+    seen.set(r.name, k);
+    return { order: idx + 1, name: r.name, occurrence: k, total, duplicate: total > 1 };
+  });
+
+  const dupRows = rows.filter(r => r.duplicate).length;
+  return {
+    rows,
+    stats: {
+      total: records.length,
+      unique: counts.size,
+      dupNumbers: [...counts.values()].filter(c => c > 1).length,
+      dupRows,
+      extraScans: dupRows - [...counts.values()].filter(c => c > 1).length,
+    },
+  };
+}
+// === END DUPLI CORE ===
+
+/* =====================================================================
+ *  DupliCheck — UI
+ * ===================================================================== */
+function initDupliCheck(){
+  const $ = id => document.getElementById(id);
+  const state = { result: null };
+  const errBox = $('dcErr');
+
+  const esc = s => String(s).replace(/[&<>"']/g, c =>
+    ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+  /* ---------- nahrávanie ---------- */
+  const zone = $('dcDz'), input = $('dcFile');
+  zone.addEventListener('click', () => input.click());
+  input.addEventListener('change', () => input.files[0] && load(input.files[0]));
+  zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('drag'); });
+  zone.addEventListener('dragleave', () => zone.classList.remove('drag'));
+  zone.addEventListener('drop', e => {
+    e.preventDefault(); zone.classList.remove('drag');
+    if (e.dataTransfer.files[0]) load(e.dataTransfer.files[0]);
+  });
+
+  async function load(file){
+    try{
+      const records = parseGcpDat(await file.arrayBuffer());
+      state.result = analyzeGcpDuplicates(records);
+      zone.classList.add('loaded');
+      $('dcDzFile').textContent = `✔ ${file.name} (${(file.size / 1024).toFixed(1)} kB)`;
+      $('dcOutName').value = file.name.replace(/\.[^.]*$/, '') + '_cisla.txt';
+      errBox.classList.remove('show');
+      render();
+    }catch(err){
+      errBox.textContent = `⚠ GCP súbor „${file.name}“: ${err.message}`;
+      errBox.classList.add('show');
+    }
+  }
+
+  /* ---------- výpis ---------- */
+  function render(){
+    const { rows, stats } = state.result;
+    $('dcTotal').textContent   = stats.total;
+    $('dcUnique').textContent  = stats.unique;
+    $('dcDupNums').textContent = stats.dupNumbers;
+    $('dcDupRows').textContent = stats.dupRows;
+    $('dcChips').style.display   = 'flex';
+    $('dcActions').style.display = 'flex';
+    $('dcEmpty').style.display   = 'none';
+    $('dcTableWrap').style.display = 'block';
+    renderRows();
+  }
+
+  function renderRows(){
+    const onlyDup = $('dcOnlyDup').checked;
+    const rows = state.result.rows.filter(r => !onlyDup || r.duplicate);
+    if (!rows.length){
+      $('dcBody').innerHTML = '<tr><td colspan="4" style="text-align:center;color:var(--text-warm)">'
+        + 'Žiadne duplicity — všetky čísla bodov sú unikátne. 🎉</td></tr>';
+      return;
+    }
+    $('dcBody').innerHTML = rows.map(r => `
+      <tr class="${r.duplicate ? 'dup-row' : ''}">
+        <td class="num">${r.order}</td>
+        <td>${esc(r.name)}</td>
+        <td class="num">${r.duplicate ? `${r.occurrence}. z ${r.total}` : '—'}</td>
+        <td>${r.duplicate
+          ? '<span class="badge dup">duplicitný</span>'
+          : '<span class="badge ok">unikátny</span>'}</td>
+      </tr>`).join('');
+  }
+
+  $('dcOnlyDup').addEventListener('change', renderRows);
+
+  /* ---------- výstup: čísla bodov v poradí skenovania ---------- */
+  function outputText(){
+    return state.result.rows.map(r => r.name).join('\r\n') + '\r\n';
+  }
+
+  $('dcDownload').addEventListener('click', () => {
+    if (!state.result) return toast('Najprv nahraj GCP súbor.');
+    const blob = new Blob([outputText()], { type: 'text/plain' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = $('dcOutName').value.trim() || 'cisla_bodov.txt';
+    a.click();
+    URL.revokeObjectURL(a.href);
+    toast('Súbor stiahnutý ✔');
+  });
+
+  $('dcCopy').addEventListener('click', async () => {
+    if (!state.result) return toast('Najprv nahraj GCP súbor.');
+    await navigator.clipboard.writeText(outputText());
+    toast('Skopírované do schránky ✔');
+  });
+}
+
+/* spustenie nástrojov */
+for (const tool of Object.values(Tools)) tool.init && tool.init();
+</script>
+</body>
+</html>
