@@ -8,6 +8,7 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.10.0/proj4.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/laz-perf@0.0.7/lib/laz-perf.js"></script>
 
     <style>
         :root {
@@ -143,6 +144,69 @@
 
         @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
 
+        /* --- QC MRAČIEN --- */
+        .form-row { display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-end; }
+        .form-row + .form-row { margin-top: 12px; }
+        .form-group { display: flex; flex-direction: column; gap: 4px; flex: 1 1 120px; min-width: 110px; }
+        .form-group label { font-size: 0.7em; text-transform: uppercase; letter-spacing: 0.5px; color: #888; font-weight: 700; }
+        .form-group input, .form-group select {
+            padding: 8px 10px; border: 1px solid var(--border); border-radius: 6px;
+            font-size: 0.9em; font-family: inherit; background: #fff; color: var(--text); width: 100%;
+        }
+        .form-group input:focus, .form-group select:focus { outline: none; border-color: var(--primary); }
+        .hint { font-size: 0.75em; color: #999; margin-top: 10px; line-height: 1.5; }
+
+        .btn-primary { background: var(--primary); color: #fff; padding: 10px 18px; font-size: 0.95em; }
+        .btn-primary:hover { background: var(--primary-hover); }
+        .btn-blue { background: var(--blue); color: #fff; }
+        .btn-blue:hover { background: #093a7a; }
+        .btn:disabled { opacity: 0.45; cursor: not-allowed; transform: none !important; }
+
+        .progress { height: 8px; background: #eceff3; border-radius: 5px; overflow: hidden; margin-top: 14px; }
+        .progress > div { height: 100%; width: 0; background: var(--primary); transition: width 0.15s linear; }
+        .qc-status { font-size: 0.78em; color: #666; margin-top: 8px; font-family: 'Consolas', monospace; min-height: 1.2em; word-break: break-all; }
+        .qc-status.err { color: var(--danger); font-weight: 700; }
+
+        .file-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+        .chip { background: #f1f3f6; border: 1px solid var(--border); border-radius: 20px; padding: 4px 12px; font-size: 0.75em; font-family: 'Consolas', monospace; color: #555; }
+        .chip.warn { background: #fff4e5; border-color: #ffd8a8; color: #a05a00; }
+
+        .qc-table { width: 100%; border-collapse: collapse; font-size: 0.8em; font-family: 'Consolas', monospace; }
+        .qc-table th { position: sticky; top: 0; z-index: 1; background: #f7f8fa; text-align: right; padding: 9px 7px; border-bottom: 2px solid var(--border); color: #666; font-size: 0.95em; }
+        .qc-table td { padding: 7px; border-bottom: 1px solid #f1f1f1; text-align: right; white-space: nowrap; }
+        .qc-table th:first-child, .qc-table td:first-child { text-align: left; }
+        .qc-table tbody tr { cursor: pointer; }
+        .qc-table tbody tr:hover { background: #fffaf0; }
+        .qc-table tbody tr.sel { background: #fff1dd; box-shadow: inset 3px 0 0 var(--primary); }
+        .qc-table td.big { font-weight: 700; font-size: 1.05em; }
+
+        .badge { display: inline-block; padding: 2px 9px; border-radius: 10px; font-size: 0.95em; font-weight: 700; color: #fff; }
+        .badge.ok { background: var(--success); }
+        .badge.no { background: var(--danger); }
+        .badge.na { background: #adb5bd; }
+
+        .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(86px, 1fr)); gap: 10px; }
+        .stat { background: #f7f8fa; border-radius: 8px; padding: 12px 8px; text-align: center; border: 1px solid #eef0f3; }
+        .stat b { display: block; font-size: 1.2em; color: var(--blue); font-family: 'Consolas', monospace; }
+        .stat span { font-size: 0.66em; color: #999; text-transform: uppercase; font-weight: 700; letter-spacing: 0.3px; }
+
+        /* 3D prehliadač */
+        .viewer-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.8); z-index: 9000; display: none; padding: 2vh 2vw; }
+        .viewer-overlay.active { display: block; }
+        .viewer-box { background: #14171c; border-radius: 12px; width: 100%; height: 100%; display: flex; flex-direction: column; overflow: hidden; }
+        .viewer-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 18px; background: #1d222a; color: #e8eaed; flex-wrap: wrap; }
+        .viewer-head h3 { margin: 0; font-size: 1em; font-family: 'Consolas', monospace; }
+        .viewer-head select { background: #2a303a; color: #e8eaed; border: 1px solid #3a424f; border-radius: 6px; padding: 6px 10px; font-size: 0.85em; }
+        .viewer-close { background: none; border: none; color: #e8eaed; font-size: 22px; cursor: pointer; line-height: 1; padding: 0 4px; }
+        #qcCanvasWrap { flex-grow: 1; position: relative; min-height: 0; }
+        #qcCanvasWrap canvas { display: block; width: 100%; height: 100%; }
+        .viewer-legend {
+            position: absolute; left: 14px; bottom: 14px; color: #d6d9de; font-size: 0.75em;
+            background: rgba(0,0,0,0.5); padding: 10px 12px; border-radius: 8px;
+            font-family: 'Consolas', monospace; line-height: 1.6; pointer-events: none;
+        }
+        .viewer-legend b { color: #fff; }
+
         /* MOBILE */
         @media (max-width: 900px) {
             body { flex-direction: column; height: auto; min-height: 100vh; overflow-y: auto; }
@@ -178,6 +242,9 @@
             </li>
             <li class="nav-item" onclick="switchView('import', this)">
                 <span>📥</span> Import for Trimble
+            </li>
+            <li class="nav-item" onclick="switchView('qc', this)">
+                <span>🛰️</span> QC mračien (LAZ)
             </li>
         </ul>
         
@@ -259,6 +326,136 @@
                     </div>
                 </div>
 
+                <div id="view-qc" class="module-container">
+                    <div class="top-bar">
+                        <div>
+                            <h1 class="module-title">QC mračien (LAS/LAZ)</h1>
+                            <div class="module-desc">Kontrola výšok mračna voči GCP - načíta sa iba okolie každého bodu</div>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-header">
+                            <span>1. Súradnice GCP</span>
+                            <button class="btn btn-text" onclick="qcClearGcp()">Zmazať</button>
+                        </div>
+                        <div class="card-body">
+                            <div class="drop-zone" id="dropZoneGcp" style="padding:25px 20px;">
+                                <input type="file" id="fileInputGcp" multiple accept=".txt,.csv,.xyz,.pts" style="display:none">
+                                <div class="drop-icon">📍</div>
+                                <div>Pretiahni súbor s GCP sem</div>
+                                <strong>alebo klikni</strong>
+                            </div>
+                            <div class="form-row" style="margin-top:14px;">
+                                <div class="form-group">
+                                    <label>Poradie stĺpcov</label>
+                                    <select id="qcOrder" onchange="qcRenderGcp()">
+                                        <option value="yxz">ID Y X Z (JTSK / MGEO)</option>
+                                        <option value="xyz">ID X Y Z (E N H)</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label>Priradenie k mračnu</label>
+                                    <select id="qcSign">
+                                        <option value="auto">Automaticky (podľa rozsahu mračna)</option>
+                                        <option value="asis">1:1 (stĺpce bez úpravy)</option>
+                                        <option value="neg">Záporné JTSK (-|st1|, -|st2|)</option>
+                                        <option value="abs">Kladné (|st1|, |st2|)</option>
+                                        <option value="swap">Prehodiť stĺpce</option>
+                                        <option value="negswap">Prehodiť + záporné</option>
+                                        <option value="absswap">Prehodiť + kladné</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="file-chips" id="qcGcpChips"></div>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-header">
+                            <span>2. Mračno bodov (.laz / .las)</span>
+                            <button class="btn btn-text" onclick="qcClearClouds()">Zmazať</button>
+                        </div>
+                        <div class="card-body">
+                            <div class="drop-zone" id="dropZoneCloud" style="padding:25px 20px;">
+                                <input type="file" id="fileInputCloud" multiple accept=".laz,.las" style="display:none">
+                                <div class="drop-icon">🛰️</div>
+                                <div>Pretiahni .laz / .las (aj viac dlaždíc)</div>
+                                <strong>alebo klikni</strong>
+                            </div>
+                            <div class="file-chips" id="qcCloudChips"></div>
+
+                            <div class="form-row" style="margin-top:16px;">
+                                <div class="form-group">
+                                    <label>Polomer výrezu [m]</label>
+                                    <input type="number" id="qcRadius" value="2.0" step="0.5" min="0.1">
+                                </div>
+                                <div class="form-group">
+                                    <label>Vert. okno ± [m]</label>
+                                    <input type="number" id="qcDzMax" value="3.0" step="0.5" min="0.1">
+                                </div>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label>Polomer roviny [m]</label>
+                                    <input type="number" id="qcPlaneR" value="0.50" step="0.05" min="0.02" onchange="qcAnalyze()">
+                                </div>
+                                <div class="form-group">
+                                    <label>Tolerancia dZ [m]</label>
+                                    <input type="number" id="qcTol" value="0.050" step="0.005" min="0.001" onchange="qcAnalyze()">
+                                </div>
+                                <div class="form-group">
+                                    <label>Triedy (LAS class)</label>
+                                    <select id="qcClass" onchange="qcAnalyze()">
+                                        <option value="all">Všetky</option>
+                                        <option value="2">2 - terén</option>
+                                        <option value="2,11">2,11 - terén + cesta</option>
+                                        <option value="1,2">1,2 - nezatr. + terén</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <button class="btn btn-primary" id="qcRunBtn" style="margin-top:16px;width:100%;justify-content:center;" onclick="qcRun()">
+                                ▶ Spustiť kontrolu
+                            </button>
+                            <div class="progress"><div id="qcBar"></div></div>
+                            <div class="qc-status" id="qcStatus">Pripravené.</div>
+                            <div class="hint">
+                                Z mračna sa do pamäte ukladajú <b>iba body v okolí GCP</b>. LAZ sa musí najprv
+                                dekomprimovať celý, preto pri veľkých dlaždiciach chvíľu potrvá, kým sa prejde súbor.
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card" id="qcSummaryCard" style="display:none;">
+                        <div class="card-header"><span>3. Súhrn</span></div>
+                        <div class="card-body">
+                            <div class="stat-grid" id="qcSummary"></div>
+                        </div>
+                    </div>
+
+                    <div class="card full" id="qcResultsCard" style="display:none;">
+                        <div class="card-header">
+                            <span>4. Výsledky</span>
+                            <span style="display:flex;gap:8px;">
+                                <button class="btn btn-blue" onclick="qcExportCsv()">⬇ Protokol CSV</button>
+                                <button class="btn btn-green" onclick="qcExportXyz()">⬇ Výrezy XYZ</button>
+                            </span>
+                        </div>
+                        <div class="card-body" style="padding:0;">
+                            <table class="qc-table">
+                                <thead>
+                                    <tr>
+                                        <th>Bod</th><th>Z GCP</th><th>Z mračno</th><th>dZ</th>
+                                        <th>σ</th><th>n</th><th>sklon</th><th>stav</th><th>3D</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="qcTableBody"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
             </div>
 
             <div class="col-map" id="mapColumn">
@@ -276,6 +473,293 @@
 
         </div>
     </main>
+
+    <!-- 3D prehliadač výrezu mračna -->
+    <div class="viewer-overlay" id="qcViewer">
+        <div class="viewer-box">
+            <div class="viewer-head">
+                <h3 id="qcViewerTitle">Výrez</h3>
+                <span style="display:flex;align-items:center;gap:10px;">
+                    <select id="qcColorMode" onchange="qcRecolor()">
+                        <option value="dz">Farbenie: odchýlka od roviny</option>
+                        <option value="z">Farbenie: výška</option>
+                        <option value="cls">Farbenie: trieda</option>
+                        <option value="int">Farbenie: intenzita</option>
+                    </select>
+                    <button class="viewer-close" onclick="qcClose3D()">✕</button>
+                </span>
+            </div>
+            <div id="qcCanvasWrap">
+                <div class="viewer-legend" id="qcViewerInfo"></div>
+            </div>
+        </div>
+    </div>
+
+<script type="text/js-worker" id="qcCoreSrc">
+/* =========================================================================
+   QC MRAČIEN - JADRO (beží vo Web Workeri, alebo ako fallback v hl. vlákne)
+   Číta LAS/LAZ a vyberie iba body v okolí zadaných GCP.
+   ========================================================================= */
+
+var LAZPERF_BASE = 'https://cdn.jsdelivr.net/npm/laz-perf@0.0.7/lib/';
+var _lazPromise = null;
+
+function getLazPerf() {
+    if (!_lazPromise) {
+        if (typeof createLazPerf !== 'function') {
+            return Promise.reject(new Error('Knižnica laz-perf sa nenačítala (skontroluj pripojenie na internet).'));
+        }
+        _lazPromise = createLazPerf({ locateFile: function (f) { return LAZPERF_BASE + f; } });
+    }
+    return _lazPromise;
+}
+
+/* --- Hlavička LAS/LAZ ------------------------------------------------- */
+function parseLasHeader(ab) {
+    var dv = new DataView(ab);
+    var sig = String.fromCharCode(dv.getUint8(0), dv.getUint8(1), dv.getUint8(2), dv.getUint8(3));
+    if (sig !== 'LASF') throw new Error('Nie je to LAS/LAZ súbor (chýba podpis "LASF").');
+
+    var h = {};
+    h.versionMajor = dv.getUint8(24);
+    h.versionMinor = dv.getUint8(25);
+    h.headerSize = dv.getUint16(94, true);
+    h.offsetToPointData = dv.getUint32(96, true);
+    h.numVlrs = dv.getUint32(100, true);
+
+    var raw = dv.getUint8(104);
+    h.compressed = (raw & 0xC0) !== 0;
+    h.pdrf = raw & 0x3F;
+    h.pointLength = dv.getUint16(105, true);
+    h.pointCount = dv.getUint32(107, true);
+
+    h.scale = [dv.getFloat64(131, true), dv.getFloat64(139, true), dv.getFloat64(147, true)];
+    h.offset = [dv.getFloat64(155, true), dv.getFloat64(163, true), dv.getFloat64(171, true)];
+    h.maxX = dv.getFloat64(179, true); h.minX = dv.getFloat64(187, true);
+    h.maxY = dv.getFloat64(195, true); h.minY = dv.getFloat64(203, true);
+    h.maxZ = dv.getFloat64(211, true); h.minZ = dv.getFloat64(219, true);
+
+    if (h.versionMajor === 1 && h.versionMinor >= 4 && h.headerSize >= 375) {
+        var big = Number(dv.getBigUint64(247, true));
+        if (big > 0) h.pointCount = big;
+    }
+    return h;
+}
+
+function classAtOffset(dv, o, pdrf) {
+    return pdrf >= 6 ? dv.getUint8(o + 16) : (dv.getUint8(o + 15) & 0x1F);
+}
+
+/* --- Zberač bodov: mriežka nad GCP ------------------------------------ */
+function makeCollector(gcps, radius, dzMax, maxKeep) {
+    var cell = radius;
+    var r2 = radius * radius;
+    var grid = new Map();
+    var i, dx, dy;
+
+    var bx0 = Infinity, bx1 = -Infinity, by0 = Infinity, by1 = -Infinity;
+    for (i = 0; i < gcps.length; i++) {
+        var g = gcps[i];
+        if (g.X - radius < bx0) bx0 = g.X - radius;
+        if (g.X + radius > bx1) bx1 = g.X + radius;
+        if (g.Y - radius < by0) by0 = g.Y - radius;
+        if (g.Y + radius > by1) by1 = g.Y + radius;
+
+        var cx = Math.floor(g.X / cell), cy = Math.floor(g.Y / cell);
+        for (dx = -1; dx <= 1; dx++) {
+            for (dy = -1; dy <= 1; dy++) {
+                var k = (cx + dx) * 33554432 + (cy + dy);
+                var arr = grid.get(k);
+                if (!arr) { arr = []; grid.set(k, arr); }
+                arr.push(i);
+            }
+        }
+    }
+
+    var out = [];
+    for (i = 0; i < gcps.length; i++) out.push({ x: [], y: [], z: [], c: [], i: [] });
+
+    return {
+        bbox: [bx0, by0, bx1, by1],
+        out: out,
+        add: function (x, y, z, cls, inten) {
+            if (x < bx0 || x > bx1 || y < by0 || y > by1) return;
+            var list = grid.get(Math.floor(x / cell) * 33554432 + Math.floor(y / cell));
+            if (!list) return;
+            for (var j = 0; j < list.length; j++) {
+                var gi = list[j], g = gcps[gi];
+                var ddx = x - g.X, ddy = y - g.Y;
+                if (ddx * ddx + ddy * ddy > r2) continue;
+                if (dzMax > 0 && Math.abs(z - g.Z) > dzMax) continue;
+                var o = out[gi];
+                if (o.x.length >= maxKeep) continue;
+                o.x.push(x); o.y.push(y); o.z.push(z); o.c.push(cls); o.i.push(inten);
+            }
+        }
+    };
+}
+
+/* --- Nekomprimované LAS: čítame po blokoch, súbor nemusí byť v pamäti -- */
+function scanLasPlain(file, h, coll, report) {
+    var plen = h.pointLength;
+    var total = h.pointCount;
+    var start = h.offsetToPointData;
+    var perChunk = Math.max(1, Math.floor((8 * 1024 * 1024) / plen));
+    var done = 0;
+
+    function step() {
+        if (done >= total) return Promise.resolve();
+        var take = Math.min(perChunk, total - done);
+        var off = start + done * plen;
+        return file.slice(off, off + take * plen).arrayBuffer().then(function (ab) {
+            var have = Math.floor(ab.byteLength / plen);
+            if (have <= 0) { done = total; return; }
+            var dv = new DataView(ab);
+            var sx = h.scale[0], sy = h.scale[1], sz = h.scale[2];
+            var ox = h.offset[0], oy = h.offset[1], oz = h.offset[2];
+            for (var i = 0; i < have; i++) {
+                var o = i * plen;
+                var X = dv.getInt32(o, true) * sx + ox;
+                var Y = dv.getInt32(o + 4, true) * sy + oy;
+                var Z = dv.getInt32(o + 8, true) * sz + oz;
+                coll.add(X, Y, Z, classAtOffset(dv, o, h.pdrf), dv.getUint16(o + 12, true));
+            }
+            done += have;
+            report(done / total, 'Čítam body ' + done.toLocaleString('sk') + ' / ' + total.toLocaleString('sk'));
+            return step();
+        });
+    }
+    return step();
+}
+
+/* --- LAZ: dekompresia cez laz-perf (WASM) ----------------------------- */
+function scanLaz(file, h, coll, report) {
+    var Lp, filePtr = 0, ptPtr = 0, lz = null;
+    var size = file.size;
+
+    return getLazPerf().then(function (mod) {
+        Lp = mod;
+        filePtr = Lp._malloc(size);
+        if (!filePtr) throw new Error('Nedostatok pamäte prehliadača pre súbor (' + (size / 1048576).toFixed(0) + ' MB).');
+
+        var CH = 16 * 1024 * 1024, pos = 0;
+        function load() {
+            if (pos >= size) return Promise.resolve();
+            var end = Math.min(pos + CH, size);
+            return file.slice(pos, end).arrayBuffer().then(function (ab) {
+                Lp.HEAPU8.set(new Uint8Array(ab), filePtr + pos);
+                pos = end;
+                report(0.2 * (pos / size), 'Nahrávam LAZ do pamäte ' + (pos / 1048576).toFixed(0) + ' / ' + (size / 1048576).toFixed(0) + ' MB');
+                return load();
+            });
+        }
+        return load();
+    }).then(function () {
+        lz = new Lp.LASZip();
+        lz.open(filePtr, size);
+
+        var total = lz.getCount() || h.pointCount;
+        var plen = lz.getPointLength() || h.pointLength;
+        var pdrf = lz.getPointFormat();
+        if (pdrf === undefined || pdrf === null || isNaN(pdrf)) pdrf = h.pdrf;
+
+        ptPtr = Lp._malloc(plen);
+        // pozor: WASM pamäť môže počas dekompresie narásť a pôvodný buffer sa odpojí
+        var heapBuf = Lp.HEAPU8.buffer;
+        var dv = new DataView(heapBuf, ptPtr, plen);
+        var sx = h.scale[0], sy = h.scale[1], sz = h.scale[2];
+        var ox = h.offset[0], oy = h.offset[1], oz = h.offset[2];
+        var done = 0;
+        var BATCH = 250000;
+
+        function step() {
+            if (done >= total) return Promise.resolve();
+            var end = Math.min(done + BATCH, total);
+            for (; done < end; done++) {
+                lz.getPoint(ptPtr);
+                if (Lp.HEAPU8.buffer !== heapBuf) {
+                    heapBuf = Lp.HEAPU8.buffer;
+                    dv = new DataView(heapBuf, ptPtr, plen);
+                }
+                var X = dv.getInt32(0, true) * sx + ox;
+                var Y = dv.getInt32(4, true) * sy + oy;
+                var Z = dv.getInt32(8, true) * sz + oz;
+                coll.add(X, Y, Z, classAtOffset(dv, 0, pdrf), dv.getUint16(12, true));
+            }
+            report(0.2 + 0.8 * (done / total), 'Dekomprimujem ' + done.toLocaleString('sk') + ' / ' + total.toLocaleString('sk') + ' bodov');
+            return new Promise(function (res) { setTimeout(res, 0); }).then(step);
+        }
+        return step();
+    }).then(function () {
+        if (ptPtr) Lp._free(ptPtr);
+        if (lz) lz.delete();
+        if (filePtr) Lp._free(filePtr);
+    }, function (err) {
+        try { if (ptPtr) Lp._free(ptPtr); if (lz) lz.delete(); if (filePtr) Lp._free(filePtr); } catch (e) { }
+        throw err;
+    });
+}
+
+/* --- Hlavná funkcia --------------------------------------------------- */
+/* p = { files, headers, gcps:[{X,Y,Z}], radius, dzMax, maxKeep }         */
+function qcScanCore(p, report) {
+    var coll = makeCollector(p.gcps, p.radius, p.dzMax, p.maxKeep || 400000);
+    var idx = 0;
+
+    function next() {
+        if (idx >= p.files.length) return Promise.resolve();
+        var file = p.files[idx];
+        var h = p.headers[idx];
+        var fi = idx + 1, fn = p.files.length;
+        idx++;
+
+        var rep = function (frac, msg) {
+            report({ pct: ((fi - 1) + Math.min(1, frac)) / fn * 100, msg: '[' + fi + '/' + fn + '] ' + file.name + ' - ' + msg });
+        };
+
+        // Rýchle odmietnutie: dlaždica sa nedotýka žiadneho GCP
+        var b = coll.bbox;
+        if (h.maxX < b[0] || h.minX > b[2] || h.maxY < b[1] || h.minY > b[3]) {
+            rep(1, 'preskočené (mimo GCP)');
+            return next();
+        }
+
+        rep(0, 'štart');
+        var task = h.compressed ? scanLaz(file, h, coll, rep) : scanLasPlain(file, h, coll, rep);
+        return task.then(next);
+    }
+
+    return next().then(function () {
+        return coll.out.map(function (o) {
+            return {
+                x: Float64Array.from(o.x),
+                y: Float64Array.from(o.y),
+                z: Float64Array.from(o.z),
+                c: Uint8Array.from(o.c),
+                i: Uint16Array.from(o.i)
+            };
+        });
+    });
+}
+
+/* --- Obsluha vo Workeri ------------------------------------------------ */
+if (typeof document === 'undefined' && typeof self !== 'undefined' && typeof self.postMessage === 'function') {
+    self.onmessage = function (ev) {
+        var d = ev.data;
+        var last = 0;
+        qcScanCore(d, function (pr) {
+            var now = Date.now();
+            if (now - last > 120) { last = now; self.postMessage({ type: 'progress', pct: pr.pct, msg: pr.msg }); }
+        }).then(function (out) {
+            var transfer = [];
+            out.forEach(function (o) { transfer.push(o.x.buffer, o.y.buffer, o.z.buffer, o.c.buffer, o.i.buffer); });
+            self.postMessage({ type: 'done', out: out }, transfer);
+        }).catch(function (err) {
+            self.postMessage({ type: 'error', msg: (err && err.message) ? err.message : String(err) });
+        });
+    };
+}
+</script>
 
 <script>
     // --- 1. GLOBÁLNA KONFIGURÁCIA ---
@@ -621,6 +1105,699 @@
         `;
         targetList.appendChild(li);
     }
+
+    /* ========================================================
+       MODUL C: QC MRAČIEN (LAS / LAZ vs. GCP)
+       ======================================================== */
+    const QC = {
+        gcps: [],        // {id, v1, v2, z, code, X, Y, Z}
+        files: [],       // File[]
+        headers: [],     // hlavičky LAS
+        subsets: [],     // výrezy z mračna (typed arrays) pre každý GCP
+        results: [],
+        worker: null,
+        transform: null,
+        radius: 2,
+        sel: -1,
+        layer: null
+    };
+
+    // jadro (parseLasHeader, qcScanCore...) sprístupníme aj v hlavnom vlákne
+    const QC_CORE_SRC = document.getElementById('qcCoreSrc').textContent;
+    (0, eval)(QC_CORE_SRC);
+
+    const QC_TRANSFORMS = [
+        { id: 'asis', name: '1:1 (X=st1, Y=st2)', f: (a, b) => [a, b] },
+        { id: 'neg', name: 'záporné JTSK (X=-|st1|, Y=-|st2|)', f: (a, b) => [-Math.abs(a), -Math.abs(b)] },
+        { id: 'abs', name: 'kladné (X=|st1|, Y=|st2|)', f: (a, b) => [Math.abs(a), Math.abs(b)] },
+        { id: 'swap', name: 'prehodené (X=st2, Y=st1)', f: (a, b) => [b, a] },
+        { id: 'negswap', name: 'prehodené záporné (X=-|st2|, Y=-|st1|)', f: (a, b) => [-Math.abs(b), -Math.abs(a)] },
+        { id: 'absswap', name: 'prehodené kladné (X=|st2|, Y=|st1|)', f: (a, b) => [Math.abs(b), Math.abs(a)] }
+    ];
+
+    const qcEl = (id) => document.getElementById(id);
+    const qcFmt = (v, d) => (v === null || v === undefined || isNaN(v)) ? '—' : v.toFixed(d === undefined ? 3 : d);
+
+    function qcSetStatus(msg, isErr) {
+        const s = qcEl('qcStatus');
+        s.textContent = msg;
+        s.className = 'qc-status' + (isErr ? ' err' : '');
+    }
+
+    /* --- 1. GCP -------------------------------------------------------- */
+    (function () {
+        const dz = qcEl('dropZoneGcp'), fi = qcEl('fileInputGcp');
+        dz.onclick = () => fi.click();
+        fi.onchange = (e) => { qcLoadGcpFiles(e.target.files); fi.value = ''; };
+        dz.ondragover = (e) => { e.preventDefault(); dz.classList.add('dragover'); };
+        dz.ondragleave = (e) => { e.preventDefault(); dz.classList.remove('dragover'); };
+        dz.ondrop = (e) => { e.preventDefault(); dz.classList.remove('dragover'); qcLoadGcpFiles(e.dataTransfer.files); };
+    })();
+
+    function qcLoadGcpFiles(files) {
+        if (!files || !files.length) return;
+        Array.from(files).forEach(f => {
+            const rd = new FileReader();
+            rd.onload = (e) => { qcParseGcp(e.target.result, f.name); qcRenderGcp(); };
+            rd.readAsText(f);
+        });
+    }
+
+    function qcParseGcp(text, filename) {
+        text.split(/\r?\n/).forEach(line => {
+            const p = line.split(/[ \t,;]+/).filter(s => s !== '');
+            if (p.length < 4) return;
+            const v1 = parseFloat(p[1].replace(',', '.'));
+            const v2 = parseFloat(p[2].replace(',', '.'));
+            const z = parseFloat(p[3].replace(',', '.'));
+            if (isNaN(v1) || isNaN(v2) || isNaN(z)) return;
+            QC.gcps.push({ id: p[0], v1: v1, v2: v2, z: z, code: p.length > 4 ? p.slice(4).join(' ') : '', src: filename });
+        });
+    }
+
+    function qcClearGcp() {
+        QC.gcps = []; QC.subsets = []; QC.results = [];
+        qcRenderGcp(); qcRenderResults();
+    }
+
+    function qcRenderGcp() {
+        const box = qcEl('qcGcpChips');
+        if (!QC.gcps.length) { box.innerHTML = '<span class="chip">Zatiaľ žiadne GCP</span>'; return; }
+        const zs = QC.gcps.map(g => g.z);
+        box.innerHTML =
+            '<span class="chip">' + QC.gcps.length + ' bodov</span>' +
+            '<span class="chip">Z: ' + qcFmt(Math.min.apply(null, zs), 2) + ' – ' + qcFmt(Math.max.apply(null, zs), 2) + ' m</span>' +
+            '<span class="chip">prvý: ' + QC.gcps[0].id + '</span>';
+    }
+
+    /* --- 2. Mračná ----------------------------------------------------- */
+    (function () {
+        const dz = qcEl('dropZoneCloud'), fi = qcEl('fileInputCloud');
+        dz.onclick = () => fi.click();
+        fi.onchange = (e) => { qcLoadClouds(e.target.files); fi.value = ''; };
+        dz.ondragover = (e) => { e.preventDefault(); dz.classList.add('dragover'); };
+        dz.ondragleave = (e) => { e.preventDefault(); dz.classList.remove('dragover'); };
+        dz.ondrop = (e) => { e.preventDefault(); dz.classList.remove('dragover'); qcLoadClouds(e.dataTransfer.files); };
+    })();
+
+    async function qcLoadClouds(files) {
+        for (const f of Array.from(files)) {
+            if (!/\.(laz|las)$/i.test(f.name)) continue;
+            try {
+                const head = await f.slice(0, 512).arrayBuffer();
+                const h = parseLasHeader(head);
+                QC.files.push(f); QC.headers.push(h);
+            } catch (err) {
+                QC.files.push(f); QC.headers.push({ error: err.message });
+            }
+        }
+        qcRenderClouds();
+    }
+
+    function qcClearClouds() {
+        QC.files = []; QC.headers = []; QC.subsets = []; QC.results = [];
+        qcRenderClouds(); qcRenderResults();
+    }
+
+    function qcRenderClouds() {
+        const box = qcEl('qcCloudChips');
+        if (!QC.files.length) { box.innerHTML = '<span class="chip">Zatiaľ žiadne mračno</span>'; return; }
+        box.innerHTML = QC.files.map((f, i) => {
+            const h = QC.headers[i];
+            if (h.error) return '<span class="chip warn">' + f.name + ' – ' + h.error + '</span>';
+            return '<span class="chip">' + f.name + ' · ' + (f.size / 1048576).toFixed(0) + ' MB · ' +
+                (h.compressed ? 'LAZ' : 'LAS') + ' · ' + h.pointCount.toLocaleString('sk') + ' b. · fmt ' + h.pdrf + '</span>';
+        }).join('');
+    }
+
+    /* --- 3. Výber transformácie GCP -> súradnice mračna ----------------- */
+    function qcUnionBbox() {
+        let b = [Infinity, Infinity, -Infinity, -Infinity];
+        QC.headers.forEach(h => {
+            if (h.error) return;
+            b[0] = Math.min(b[0], h.minX); b[1] = Math.min(b[1], h.minY);
+            b[2] = Math.max(b[2], h.maxX); b[3] = Math.max(b[3], h.maxY);
+        });
+        return b;
+    }
+
+    function qcPickTransform() {
+        const mode = qcEl('qcSign').value;
+        if (mode !== 'auto') return { t: QC_TRANSFORMS.find(c => c.id === mode), hits: -1 };
+        const b = qcUnionBbox();
+        const m = 50; // tolerancia okolo dlaždice
+        let best = null, bestHits = -1;
+        QC_TRANSFORMS.forEach(c => {
+            let hits = 0;
+            QC.gcps.forEach(g => {
+                const p = c.f(g.v1, g.v2);
+                if (p[0] >= b[0] - m && p[0] <= b[2] + m && p[1] >= b[1] - m && p[1] <= b[3] + m) hits++;
+            });
+            if (hits > bestHits) { bestHits = hits; best = c; }
+        });
+        return { t: best, hits: bestHits };
+    }
+
+    /* --- 4. Spustenie skenu -------------------------------------------- */
+    function qcRun() {
+        if (!QC.gcps.length) { qcSetStatus('Najprv nahraj súbor s GCP.', true); return; }
+        if (!QC.files.length) { qcSetStatus('Najprv nahraj aspoň jedno mračno (.laz / .las).', true); return; }
+        if (QC.headers.some(h => h.error)) { qcSetStatus('Niektorý súbor sa nedá prečítať – odstráň ho a skús znova.', true); return; }
+
+        const pick = qcPickTransform();
+        if (!pick.t || pick.hits === 0) {
+            const b = qcUnionBbox();
+            qcSetStatus('Žiadny GCP nepadol do rozsahu mračna (X: ' + b[0].toFixed(1) + '…' + b[2].toFixed(1) +
+                ', Y: ' + b[1].toFixed(1) + '…' + b[3].toFixed(1) + '). Skontroluj súradnicový systém alebo nastav priradenie ručne.', true);
+            return;
+        }
+        QC.transform = pick.t;
+        QC.gcps.forEach(g => {
+            const p = QC.transform.f(g.v1, g.v2);
+            g.X = p[0]; g.Y = p[1]; g.Z = g.z;
+        });
+
+        const radius = Math.max(0.1, parseFloat(qcEl('qcRadius').value) || 2);
+        const dzMax = Math.max(0.1, parseFloat(qcEl('qcDzMax').value) || 3);
+        QC.radius = radius;
+
+        const params = {
+            files: QC.files, headers: QC.headers,
+            gcps: QC.gcps.map(g => ({ X: g.X, Y: g.Y, Z: g.Z })),
+            radius: radius, dzMax: dzMax, maxKeep: 400000
+        };
+
+        qcEl('qcRunBtn').disabled = true;
+        qcEl('qcBar').style.width = '0%';
+        qcSetStatus('Priradenie: ' + QC.transform.name + (pick.hits >= 0 ? ' (' + pick.hits + '/' + QC.gcps.length + ' GCP v rozsahu)' : '') + ' – štartujem…');
+
+        const onProgress = (p) => {
+            qcEl('qcBar').style.width = Math.min(100, p.pct).toFixed(1) + '%';
+            qcSetStatus(p.msg);
+        };
+        const onDone = (out) => {
+            QC.subsets = out;
+            qcEl('qcBar').style.width = '100%';
+            qcEl('qcRunBtn').disabled = false;
+            const found = out.reduce((a, o) => a + o.x.length, 0);
+            qcSetStatus('Hotovo – vybraných ' + found.toLocaleString('sk') + ' bodov v okolí ' + QC.gcps.length + ' GCP.');
+            qcAnalyze();
+        };
+        const onErr = (msg) => {
+            qcEl('qcRunBtn').disabled = false;
+            qcSetStatus('Chyba: ' + msg, true);
+        };
+
+        try {
+            if (QC.worker) { QC.worker.terminate(); QC.worker = null; }
+            const src = "importScripts('" + LAZPERF_BASE + "laz-perf.js');\n" + QC_CORE_SRC;
+            const url = URL.createObjectURL(new Blob([src], { type: 'application/javascript' }));
+            const w = new Worker(url);
+            QC.worker = w;
+            w.onmessage = (e) => {
+                const d = e.data;
+                if (d.type === 'progress') onProgress(d);
+                else if (d.type === 'done') { onDone(d.out); w.terminate(); QC.worker = null; }
+                else if (d.type === 'error') { onErr(d.msg); w.terminate(); QC.worker = null; }
+            };
+            w.onerror = () => {
+                w.terminate(); QC.worker = null;
+                qcSetStatus('Worker zlyhal, počítam v hlavnom vlákne (stránka môže na chvíľu zamrznúť)…');
+                qcScanCore(params, onProgress).then(onDone).catch(e => onErr(e.message));
+            };
+            w.postMessage(params);
+        } catch (err) {
+            qcSetStatus('Worker sa nedá vytvoriť, počítam v hlavnom vlákne…');
+            qcScanCore(params, onProgress).then(onDone).catch(e => onErr(e.message));
+        }
+    }
+
+    /* --- 5. Vyhodnotenie (rovina metódou najmenších štvorcov) ----------- */
+    function qcSolve3(M, V) {
+        const a = [[M[0][0], M[0][1], M[0][2], V[0]],
+                   [M[1][0], M[1][1], M[1][2], V[1]],
+                   [M[2][0], M[2][1], M[2][2], V[2]]];
+        for (let i = 0; i < 3; i++) {
+            let piv = i;
+            for (let r = i + 1; r < 3; r++) if (Math.abs(a[r][i]) > Math.abs(a[piv][i])) piv = r;
+            if (Math.abs(a[piv][i]) < 1e-12) return null;
+            const t = a[i]; a[i] = a[piv]; a[piv] = t;
+            for (let r = 0; r < 3; r++) {
+                if (r === i) continue;
+                const f = a[r][i] / a[i][i];
+                for (let c = i; c < 4; c++) a[r][c] -= f * a[i][c];
+            }
+        }
+        return [a[0][3] / a[0][0], a[1][3] / a[1][1], a[2][3] / a[2][2]];
+    }
+
+    function qcFitPlane(dx, dy, dz) {
+        const n = dx.length;
+        if (n < 3) return null;
+        let sxx = 0, sxy = 0, syy = 0, sx = 0, sy = 0, sz = 0, sxz = 0, syz = 0;
+        for (let i = 0; i < n; i++) {
+            sxx += dx[i] * dx[i]; sxy += dx[i] * dy[i]; syy += dy[i] * dy[i];
+            sx += dx[i]; sy += dy[i]; sz += dz[i];
+            sxz += dx[i] * dz[i]; syz += dy[i] * dz[i];
+        }
+        const s = qcSolve3([[sxx, sxy, sx], [sxy, syy, sy], [sx, sy, n]], [sxz, syz, sz]);
+        if (!s) return null;
+        let s2 = 0;
+        for (let i = 0; i < n; i++) { const e = dz[i] - (s[0] * dx[i] + s[1] * dy[i] + s[2]); s2 += e * e; }
+        return { a: s[0], b: s[1], c: s[2], sigma: Math.sqrt(s2 / Math.max(1, n - 3)), n: n };
+    }
+
+    function qcMedian(arr) {
+        if (!arr.length) return NaN;
+        const a = Array.prototype.slice.call(arr).sort((x, y) => x - y);
+        const m = a.length >> 1;
+        return a.length % 2 ? a[m] : (a[m - 1] + a[m]) / 2;
+    }
+
+    // hrubé odľahlé body (vegetácia, autá, chodci) odstránime cez medián + MAD
+    function qcRejectGross(dx, dy, dz) {
+        if (dz.length < 5) return [dx, dy, dz];
+        const med = qcMedian(dz);
+        const mad = qcMedian(dz.map(v => Math.abs(v - med))) * 1.4826;
+        const lim = Math.max(0.30, 4 * mad);
+        const fx = [], fy = [], fz = [];
+        for (let i = 0; i < dz.length; i++) {
+            if (Math.abs(dz[i] - med) <= lim) { fx.push(dx[i]); fy.push(dy[i]); fz.push(dz[i]); }
+        }
+        return fz.length >= 3 ? [fx, fy, fz] : [dx, dy, dz];
+    }
+
+    function qcFitPlaneRobust(dx, dy, dz) {
+        const g = qcRejectGross(dx, dy, dz);
+        dx = g[0]; dy = g[1]; dz = g[2];
+        let f = qcFitPlane(dx, dy, dz);
+        if (!f) return null;
+        for (let it = 0; it < 2; it++) {
+            if (!(f.sigma > 0)) break;
+            const fx = [], fy = [], fz = [], lim = 3 * f.sigma;
+            for (let i = 0; i < dx.length; i++) {
+                if (Math.abs(dz[i] - (f.a * dx[i] + f.b * dy[i] + f.c)) <= lim) { fx.push(dx[i]); fy.push(dy[i]); fz.push(dz[i]); }
+            }
+            if (fx.length < 3 || fx.length === dx.length) break;
+            const f2 = qcFitPlane(fx, fy, fz);
+            if (!f2) break;
+            f = f2; dx = fx; dy = fy; dz = fz;
+        }
+        return f;
+    }
+
+    function qcAnalyze() {
+        if (!QC.subsets.length || !QC.gcps.length) return;
+        const planeR = Math.max(0.02, parseFloat(qcEl('qcPlaneR').value) || 0.5);
+        const tol = Math.max(0.001, parseFloat(qcEl('qcTol').value) || 0.05);
+        const clsSel = qcEl('qcClass').value;
+        const allowed = clsSel === 'all' ? null : new Set(clsSel.split(',').map(s => parseInt(s, 10)));
+        const pr2 = planeR * planeR;
+
+        QC.results = QC.gcps.map((g, i) => {
+            const s = QC.subsets[i];
+            const r = {
+                id: g.id, gz: g.Z, gX: g.X, gY: g.Y, v1: g.v1, v2: g.v2,
+                nAll: s ? s.x.length : 0, n: 0,
+                zCloud: NaN, dz: NaN, sigma: NaN, slope: NaN, near: NaN,
+                plane: null, status: 'na'
+            };
+            if (!s || !s.x.length) return r;
+
+            const dx = [], dy = [], dzv = [];
+            let near = Infinity;
+            for (let k = 0; k < s.x.length; k++) {
+                const a = s.x[k] - g.X, b = s.y[k] - g.Y, c = s.z[k] - g.Z;
+                const d3 = a * a + b * b + c * c;
+                if (d3 < near) near = d3;
+                if (allowed && !allowed.has(s.c[k])) continue;
+                if (a * a + b * b > pr2) continue;
+                dx.push(a); dy.push(b); dzv.push(c);
+            }
+            r.near = near === Infinity ? NaN : Math.sqrt(near);
+            r.n = dx.length;
+            if (!r.n) return r;
+
+            let f = qcFitPlaneRobust(dx, dy, dzv);
+            if (!f) {
+                let m = 0; for (let k = 0; k < dzv.length; k++) m += dzv[k];
+                f = { a: 0, b: 0, c: m / dzv.length, sigma: NaN, n: dzv.length };
+            }
+            r.plane = f;
+            r.n = f.n;
+            r.zCloud = g.Z + f.c;
+            r.dz = -f.c;                       // dZ = Z_GCP - Z_mračno
+            r.sigma = f.sigma;
+            r.slope = Math.atan(Math.sqrt(f.a * f.a + f.b * f.b)) * 180 / Math.PI;
+            r.status = Math.abs(r.dz) <= tol ? 'ok' : 'no';
+            return r;
+        });
+
+        qcRenderResults();
+        qcDrawMap();
+    }
+
+    /* --- 6. Výpis ------------------------------------------------------- */
+    function qcRenderResults() {
+        const tb = qcEl('qcTableBody');
+        if (!QC.results.length) {
+            qcEl('qcResultsCard').style.display = 'none';
+            qcEl('qcSummaryCard').style.display = 'none';
+            tb.innerHTML = '';
+            return;
+        }
+        qcEl('qcResultsCard').style.display = 'flex';
+        qcEl('qcSummaryCard').style.display = 'flex';
+
+        tb.innerHTML = QC.results.map((r, i) => {
+            const bd = r.status === 'ok' ? '<span class="badge ok">OK</span>'
+                : r.status === 'no' ? '<span class="badge no">MIMO</span>'
+                    : '<span class="badge na">bez dát</span>';
+            const col = r.status === 'no' ? 'color:var(--danger)' : (r.status === 'ok' ? 'color:var(--success)' : '');
+            return '<tr class="' + (QC.sel === i ? 'sel' : '') + '" onclick="qcShow3D(' + i + ')">' +
+                '<td><b>' + r.id + '</b></td>' +
+                '<td>' + qcFmt(r.gz) + '</td>' +
+                '<td>' + qcFmt(r.zCloud) + '</td>' +
+                '<td class="big" style="' + col + '">' + qcFmt(r.dz) + '</td>' +
+                '<td>' + qcFmt(r.sigma) + '</td>' +
+                '<td>' + r.n + '</td>' +
+                '<td>' + qcFmt(r.slope, 1) + '°</td>' +
+                '<td>' + bd + '</td>' +
+                '<td><button class="btn btn-blue" onclick="event.stopPropagation();qcShow3D(' + i + ')">🧊</button></td>' +
+                '</tr>';
+        }).join('');
+
+        const ok = QC.results.filter(r => r.status === 'ok').length;
+        const no = QC.results.filter(r => r.status === 'no').length;
+        const na = QC.results.filter(r => r.status === 'na').length;
+        const d = QC.results.filter(r => !isNaN(r.dz)).map(r => r.dz);
+        const mean = d.length ? d.reduce((a, b) => a + b, 0) / d.length : NaN;
+        const rmse = d.length ? Math.sqrt(d.reduce((a, b) => a + b * b, 0) / d.length) : NaN;
+        const sd = d.length > 1 ? Math.sqrt(d.reduce((a, b) => a + (b - mean) * (b - mean), 0) / (d.length - 1)) : NaN;
+
+        qcEl('qcSummary').innerHTML =
+            '<div class="stat"><b>' + QC.results.length + '</b><span>GCP</span></div>' +
+            '<div class="stat"><b style="color:var(--success)">' + ok + '</b><span>v tolerancii</span></div>' +
+            '<div class="stat"><b style="color:var(--danger)">' + no + '</b><span>mimo</span></div>' +
+            '<div class="stat"><b style="color:#adb5bd">' + na + '</b><span>bez dát</span></div>' +
+            '<div class="stat"><b>' + qcFmt(mean) + '</b><span>priemer dZ</span></div>' +
+            '<div class="stat"><b>' + qcFmt(sd) + '</b><span>σ dZ</span></div>' +
+            '<div class="stat"><b>' + qcFmt(rmse) + '</b><span>RMSE</span></div>';
+    }
+
+    function qcDrawMap() {
+        if (!QC.layer) QC.layer = L.featureGroup().addTo(map);
+        QC.layer.clearLayers();
+        const order = qcEl('qcOrder').value;
+        let any = false;
+        QC.results.forEach(r => {
+            const jY = order === 'yxz' ? r.v1 : r.v2;
+            const jX = order === 'yxz' ? r.v2 : r.v1;
+            const ay = Math.abs(jY), ax = Math.abs(jX);
+            if (ay < 400000 || ay > 950000 || ax < 900000 || ax > 1400000) return;
+            try {
+                const wgs = proj4('EPSG:5514', 'EPSG:4326', [-ay, -ax]);
+                const col = r.status === 'ok' ? '#28a745' : (r.status === 'no' ? '#dc3545' : '#adb5bd');
+                L.circleMarker([wgs[1], wgs[0]], { radius: 6, color: '#fff', weight: 2, fillColor: col, fillOpacity: 1 })
+                    .bindPopup('<b>' + r.id + '</b><br>dZ = ' + qcFmt(r.dz) + ' m<br>n = ' + r.n)
+                    .addTo(QC.layer);
+                any = true;
+            } catch (e) { }
+        });
+        if (any) { try { map.fitBounds(QC.layer.getBounds(), { padding: [60, 60], maxZoom: 19 }); } catch (e) { } }
+    }
+
+    /* --- 7. Export ------------------------------------------------------ */
+    function qcDownload(name, text) {
+        const url = URL.createObjectURL(new Blob([text], { type: 'text/plain;charset=utf-8' }));
+        const a = document.createElement('a');
+        a.href = url; a.download = name;
+        document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 5000);
+    }
+
+    function qcExportCsv() {
+        if (!QC.results.length) return;
+        const tol = qcEl('qcTol').value, pr = qcEl('qcPlaneR').value, rad = QC.radius;
+        const head = ['# SurveyKit - protokol QC mračna',
+            '# polomer vyrezu [m];' + rad,
+            '# polomer roviny [m];' + pr,
+            '# tolerancia dZ [m];' + tol,
+            '# triedy;' + qcEl('qcClass').value,
+            '# priradenie;' + (QC.transform ? QC.transform.name : ''),
+            '# subory;' + QC.files.map(f => f.name).join(' '),
+            'ID;Y_GCP;X_GCP;Z_GCP;Z_mracno;dZ;sigma;n;n_vyrez;sklon_deg;najblizsi_bod;stav'].join('\r\n');
+        const rows = QC.results.map(r => [r.id, r.v1.toFixed(3), r.v2.toFixed(3), r.gz.toFixed(3),
+            qcFmt(r.zCloud), qcFmt(r.dz), qcFmt(r.sigma), r.n, r.nAll, qcFmt(r.slope, 1), qcFmt(r.near),
+            r.status === 'ok' ? 'OK' : (r.status === 'no' ? 'MIMO' : 'BEZ DAT')].join(';'));
+        qcDownload('QC_protokol.csv', head + '\r\n' + rows.join('\r\n'));
+    }
+
+    function qcExportXyz() {
+        if (!QC.subsets.length) return;
+        const out = ['# GCP_ID X Y Z trieda intenzita'];
+        QC.gcps.forEach((g, i) => {
+            const s = QC.subsets[i];
+            if (!s) return;
+            for (let k = 0; k < s.x.length; k++) {
+                out.push(g.id + ' ' + s.x[k].toFixed(3) + ' ' + s.y[k].toFixed(3) + ' ' + s.z[k].toFixed(3) + ' ' + s.c[k] + ' ' + s.i[k]);
+            }
+        });
+        qcDownload('QC_vyrezy.txt', out.join('\r\n'));
+    }
+
+    /* --- 8. 3D prehliadač (three.js) ------------------------------------ */
+    const QC3D = { T: null, renderer: null, scene: null, cam: null, pts: null, plane: null, ring: null, raf: 0, cam3: { r: 6, th: Math.PI / 4, ph: Math.PI / 3.2 }, target: null, idx: -1 };
+
+    async function qcShow3D(i) {
+        const r = QC.results[i];
+        if (!r) return;
+        QC.sel = i; qcRenderResults();
+        if (!r.nAll) { qcSetStatus('Bod ' + r.id + ': v okolí nie sú žiadne body mračna.', true); return; }
+
+        qcEl('qcViewer').classList.add('active');
+        qcEl('qcViewerTitle').textContent = 'Bod ' + r.id + '  ·  výrez ' + QC.radius.toFixed(1) + ' m';
+        try { await qcInit3D(); } catch (e) {
+            qcEl('qcViewer').classList.remove('active');
+            qcSetStatus('3D náhľad sa nepodarilo načítať (three.js): ' + e.message, true);
+            return;
+        }
+        QC3D.idx = i;
+        qcBuildScene(i);
+    }
+
+    function qcClose3D() {
+        qcEl('qcViewer').classList.remove('active');
+        if (QC3D.raf) { cancelAnimationFrame(QC3D.raf); QC3D.raf = 0; }
+    }
+
+    async function qcInit3D() {
+        if (QC3D.T) return;
+        const T = await import('https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.min.js');
+        QC3D.T = T;
+        const wrap = qcEl('qcCanvasWrap');
+        const rn = new T.WebGLRenderer({ antialias: true });
+        rn.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        rn.setClearColor(0x14171c, 1);
+        wrap.insertBefore(rn.domElement, wrap.firstChild);
+        QC3D.renderer = rn;
+        QC3D.scene = new T.Scene();
+        QC3D.cam = new T.PerspectiveCamera(55, 1, 0.02, 5000);
+        QC3D.cam.up.set(0, 0, 1);
+        QC3D.target = new T.Vector3(0, 0, 0);
+        qcAttachControls(rn.domElement);
+        window.addEventListener('resize', qcResize3D);
+    }
+
+    function qcResize3D() {
+        if (!QC3D.renderer) return;
+        const w = qcEl('qcCanvasWrap');
+        const width = w.clientWidth || 800, height = w.clientHeight || 600;
+        QC3D.renderer.setSize(width, height, false);
+        QC3D.cam.aspect = width / height;
+        QC3D.cam.updateProjectionMatrix();
+    }
+
+    function qcUpdateCam() {
+        const c = QC3D.cam3;
+        c.ph = Math.max(0.05, Math.min(Math.PI - 0.05, c.ph));
+        const s = Math.sin(c.ph), t = QC3D.target;
+        QC3D.cam.position.set(
+            t.x + c.r * s * Math.cos(c.th),
+            t.y + c.r * s * Math.sin(c.th),
+            t.z + c.r * Math.cos(c.ph)
+        );
+        QC3D.cam.lookAt(t);
+    }
+
+    function qcAttachControls(dom) {
+        let mode = 0, px = 0, py = 0;
+        dom.addEventListener('contextmenu', e => e.preventDefault());
+        dom.addEventListener('mousedown', e => {
+            mode = (e.button === 0 && !e.shiftKey) ? 1 : 2; px = e.clientX; py = e.clientY; e.preventDefault();
+        });
+        window.addEventListener('mouseup', () => { mode = 0; });
+        window.addEventListener('mousemove', e => {
+            if (!mode) return;
+            const dx = e.clientX - px, dy = e.clientY - py; px = e.clientX; py = e.clientY;
+            if (mode === 1) { QC3D.cam3.th -= dx * 0.008; QC3D.cam3.ph -= dy * 0.008; }
+            else qcPan(dx, dy);
+            qcUpdateCam();
+        });
+        dom.addEventListener('wheel', e => {
+            e.preventDefault();
+            QC3D.cam3.r *= (e.deltaY > 0 ? 1.12 : 0.89);
+            QC3D.cam3.r = Math.max(0.05, Math.min(500, QC3D.cam3.r));
+            qcUpdateCam();
+        }, { passive: false });
+
+        let tPrev = null;
+        dom.addEventListener('touchstart', e => { tPrev = qcTouch(e); }, { passive: true });
+        dom.addEventListener('touchmove', e => {
+            const t = qcTouch(e);
+            if (tPrev) {
+                if (t.n === 1) { QC3D.cam3.th -= (t.x - tPrev.x) * 0.008; QC3D.cam3.ph -= (t.y - tPrev.y) * 0.008; }
+                else if (t.n === 2 && tPrev.n === 2 && tPrev.d > 0) {
+                    QC3D.cam3.r = Math.max(0.05, Math.min(500, QC3D.cam3.r * (tPrev.d / t.d)));
+                    qcPan(t.x - tPrev.x, t.y - tPrev.y);
+                }
+                qcUpdateCam();
+            }
+            tPrev = t;
+            e.preventDefault();
+        }, { passive: false });
+        dom.addEventListener('touchend', () => { tPrev = null; }, { passive: true });
+    }
+
+    function qcTouch(e) {
+        const ts = e.touches;
+        if (!ts.length) return null;
+        if (ts.length === 1) return { n: 1, x: ts[0].clientX, y: ts[0].clientY, d: 0 };
+        const dx = ts[0].clientX - ts[1].clientX, dy = ts[0].clientY - ts[1].clientY;
+        return { n: 2, x: (ts[0].clientX + ts[1].clientX) / 2, y: (ts[0].clientY + ts[1].clientY) / 2, d: Math.hypot(dx, dy) };
+    }
+
+    function qcPan(dx, dy) {
+        const T = QC3D.T, cam = QC3D.cam;
+        const right = new T.Vector3().setFromMatrixColumn(cam.matrix, 0);
+        const up = new T.Vector3().setFromMatrixColumn(cam.matrix, 1);
+        const k = QC3D.cam3.r * 0.0015;
+        QC3D.target.addScaledVector(right, -dx * k).addScaledVector(up, dy * k);
+    }
+
+    function qcRamp(t) { // -1..1 : modrá -> šedá -> červená
+        t = Math.max(-1, Math.min(1, t));
+        if (t < 0) { const u = -t; return [0.85 - 0.75 * u, 0.85 - 0.35 * u, 0.85 + 0.15 * u]; }
+        return [0.85 + 0.15 * t, 0.85 - 0.6 * t, 0.85 - 0.75 * t];
+    }
+    function qcRampZ(t) { // 0..1 : modrá -> zelená -> žltá -> červená
+        t = Math.max(0, Math.min(1, t));
+        if (t < 0.34) { const u = t / 0.34; return [0.1, 0.3 + 0.6 * u, 1 - 0.6 * u]; }
+        if (t < 0.67) { const u = (t - 0.34) / 0.33; return [0.1 + 0.9 * u, 0.9, 0.4 - 0.4 * u]; }
+        const u = (t - 0.67) / 0.33; return [1, 0.9 - 0.75 * u, 0.05];
+    }
+    const QC_CLS_COLORS = {
+        0: [0.6, 0.6, 0.6], 1: [0.75, 0.75, 0.75], 2: [0.72, 0.52, 0.30], 3: [0.35, 0.75, 0.35],
+        4: [0.20, 0.65, 0.25], 5: [0.05, 0.45, 0.15], 6: [0.90, 0.35, 0.35], 7: [1, 0, 1],
+        9: [0.2, 0.5, 1], 11: [0.4, 0.4, 0.45], 17: [0.9, 0.7, 0.2]
+    };
+
+    function qcColors(i, mode) {
+        const s = QC.subsets[i], g = QC.gcps[i], r = QC.results[i];
+        const n = s.x.length, col = new Float32Array(n * 3);
+        let zmin = Infinity, zmax = -Infinity, imax = 1;
+        for (let k = 0; k < n; k++) {
+            if (s.z[k] < zmin) zmin = s.z[k];
+            if (s.z[k] > zmax) zmax = s.z[k];
+            if (s.i[k] > imax) imax = s.i[k];
+        }
+        const p = r.plane;
+        const scale = Math.max(0.02, 2 * (parseFloat(qcEl('qcTol').value) || 0.05));
+        for (let k = 0; k < n; k++) {
+            let c;
+            if (mode === 'z') c = qcRampZ((s.z[k] - zmin) / Math.max(1e-6, zmax - zmin));
+            else if (mode === 'cls') c = QC_CLS_COLORS[s.c[k]] || [0.55, 0.55, 0.6];
+            else if (mode === 'int') { const v = 0.15 + 0.85 * (s.i[k] / imax); c = [v, v, v]; }
+            else {
+                const dx = s.x[k] - g.X, dy = s.y[k] - g.Y, dz = s.z[k] - g.Z;
+                const res = p ? dz - (p.a * dx + p.b * dy + p.c) : dz;
+                c = qcRamp(res / scale);
+            }
+            col[k * 3] = c[0]; col[k * 3 + 1] = c[1]; col[k * 3 + 2] = c[2];
+        }
+        return col;
+    }
+
+    function qcRecolor() {
+        if (QC3D.idx < 0 || !QC3D.pts) return;
+        QC3D.pts.geometry.setAttribute('color', new QC3D.T.BufferAttribute(qcColors(QC3D.idx, qcEl('qcColorMode').value), 3));
+        QC3D.pts.geometry.attributes.color.needsUpdate = true;
+    }
+
+    function qcBuildScene(i) {
+        const T = QC3D.T, sc = QC3D.scene, s = QC.subsets[i], g = QC.gcps[i], r = QC.results[i];
+        while (sc.children.length) {
+            const o = sc.children.pop();
+            if (o.geometry) o.geometry.dispose();
+            if (o.material) o.material.dispose();
+        }
+        const n = s.x.length;
+        const pos = new Float32Array(n * 3);
+        for (let k = 0; k < n; k++) {
+            pos[k * 3] = s.x[k] - g.X; pos[k * 3 + 1] = s.y[k] - g.Y; pos[k * 3 + 2] = s.z[k] - g.Z;
+        }
+        const geo = new T.BufferGeometry();
+        geo.setAttribute('position', new T.BufferAttribute(pos, 3));
+        geo.setAttribute('color', new T.BufferAttribute(qcColors(i, qcEl('qcColorMode').value), 3));
+        QC3D.pts = new T.Points(geo, new T.PointsMaterial({ size: 3, sizeAttenuation: false, vertexColors: true }));
+        sc.add(QC3D.pts);
+
+        const R = QC.radius;
+        const grid = new T.GridHelper(2 * R, Math.max(2, Math.round(2 * R)), 0x3a4250, 0x262c36);
+        grid.rotation.x = Math.PI / 2;
+        grid.position.z = -0.0;
+        sc.add(grid);
+
+        // preložená rovina
+        if (r.plane) {
+            const pr = Math.max(0.05, parseFloat(qcEl('qcPlaneR').value) || 0.5);
+            const pg = new T.PlaneGeometry(2 * pr, 2 * pr, 12, 12);
+            const pa = pg.attributes.position;
+            for (let k = 0; k < pa.count; k++) {
+                pa.setZ(k, r.plane.a * pa.getX(k) + r.plane.b * pa.getY(k) + r.plane.c);
+            }
+            pa.needsUpdate = true;
+            sc.add(new T.Mesh(pg, new T.MeshBasicMaterial({ color: 0xF99202, wireframe: true, transparent: true, opacity: 0.55 })));
+        }
+
+        // značka GCP: guľa + zvislá os
+        const mk = new T.Mesh(new T.SphereGeometry(Math.max(0.01, R / 60), 16, 12),
+            new T.MeshBasicMaterial({ color: 0x00e5ff }));
+        sc.add(mk);
+        const lg = new T.BufferGeometry().setFromPoints([new T.Vector3(0, 0, -R / 2), new T.Vector3(0, 0, R / 2)]);
+        sc.add(new T.Line(lg, new T.LineBasicMaterial({ color: 0x00e5ff })));
+
+        QC3D.target.set(0, 0, 0);
+        QC3D.cam3.r = Math.max(1.5, R * 2.2);
+        QC3D.cam3.th = Math.PI / 4; QC3D.cam3.ph = Math.PI / 3.2;
+
+        qcEl('qcViewerInfo').innerHTML =
+            '<b>' + r.id + '</b><br>' +
+            'dZ = <b>' + qcFmt(r.dz) + ' m</b> (Z_GCP − Z_mračno)<br>' +
+            'σ roviny = ' + qcFmt(r.sigma) + ' m · sklon ' + qcFmt(r.slope, 1) + '°<br>' +
+            'bodov: ' + r.n + ' v rovine / ' + r.nAll + ' vo výreze<br>' +
+            'ťahaj = otáčanie · shift/pravé = posun · koliesko = zoom';
+
+        setTimeout(() => { qcResize3D(); qcUpdateCam(); }, 30);
+        if (!QC3D.raf) {
+            const loop = () => { QC3D.raf = requestAnimationFrame(loop); QC3D.renderer.render(sc, QC3D.cam); };
+            loop();
+        }
+    }
+
+    /* --- init ----------------------------------------------------------- */
+    qcRenderGcp();
+    qcRenderClouds();
 
 </script>
 </body>
